@@ -1,0 +1,1920 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3D Architecture Map</title>
+<meta name="description" content="Interactive 3D map of a software system: people, apps, services, data, cloud and third-party services, delivery and tooling. Single self-contained HTML file.">
+<style>
+:root{
+  --bg0:#050810; --bg1:#0b1222; --bg2:#101a30;
+  --panel:rgba(12,19,36,.80); --panel-solid:#0d1527; --line:rgba(148,170,210,.16); --line2:rgba(148,170,210,.28);
+  --text:#e8eefb; --muted:#93a5c6; --dim:#62759a; --accent:#5eead4; --accent2:#7aa7ff;
+  --radius:14px;
+  --font:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg0);color:var(--text);font-family:var(--font);overflow:hidden;-webkit-font-smoothing:antialiased}
+#stage{position:fixed;inset:0;background:
+  radial-gradient(1200px 700px at 50% 38%,#16264a 0%,rgba(22,38,74,0) 62%),
+  radial-gradient(900px 600px at 85% 90%,#1b1236 0%,rgba(27,18,54,0) 60%),
+  linear-gradient(180deg,var(--bg1),var(--bg0))}
+canvas#c{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+canvas#c.dragging{cursor:grabbing}
+canvas#c.pointing{cursor:pointer}
+button{font:inherit;color:inherit}
+.glass{background:var(--panel);backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2);border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 12px 40px rgba(0,0,0,.45)}
+
+/* top bar */
+#top{position:absolute;left:12px;right:12px;top:12px;height:46px;display:flex;align-items:center;gap:10px;padding:0 10px 0 12px;z-index:5}
+#brand{display:flex;align-items:center;gap:9px;font-weight:650;letter-spacing:.2px;white-space:nowrap;cursor:pointer}
+#brand .mark{width:22px;height:22px;flex:none}
+#brand small{color:var(--muted);font-weight:500}
+#crumbs{display:flex;align-items:center;gap:4px;min-width:0;flex:1;overflow:hidden;margin-left:6px;font-size:13px}
+#crumbs .sep{color:var(--dim)}
+#crumbs button{background:none;border:0;padding:5px 8px;border-radius:8px;color:var(--muted);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#crumbs button:hover{background:rgba(255,255,255,.07);color:var(--text)}
+#crumbs button.cur{color:var(--text);font-weight:600;cursor:default}
+.tb{display:flex;gap:6px;align-items:center}
+.ibtn{height:30px;min-width:30px;padding:0 9px;border-radius:9px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--muted);cursor:pointer;font-size:12.5px;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+.ibtn:hover{background:rgba(255,255,255,.1);color:var(--text);border-color:var(--line2)}
+.ibtn.on{background:rgba(94,234,212,.14);border-color:rgba(94,234,212,.5);color:#bffaf0}
+.ibtn .cnt{font-size:10.5px;line-height:16px;min-width:16px;text-align:center;background:rgba(255,255,255,.12);border-radius:999px;padding:0 5px;color:var(--text)}
+.ibtn .cnt:empty{display:none}
+.ibtn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#left{transition:transform .25s}#left.collapsed{transform:translateX(-120%)}
+
+/* side panels */
+.side{position:absolute;top:70px;bottom:12px;z-index:4;display:flex;flex-direction:column;overflow:hidden}
+#left{left:12px;width:296px}
+#right{right:12px;width:392px}
+.side .scroll{overflow:auto;flex:1;padding:14px 14px 18px;scrollbar-width:thin;scrollbar-color:rgba(148,170,210,.3) transparent}
+.side .scroll::-webkit-scrollbar{width:8px}
+.side .scroll::-webkit-scrollbar-thumb{background:rgba(148,170,210,.25);border-radius:8px}
+.sec{margin-bottom:18px}
+.sec h4{margin:0 0 8px;font-size:11px;font-weight:650;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);display:flex;align-items:center;justify-content:space-between}
+.sec h4 button{background:none;border:0;color:var(--dim);font-size:11px;cursor:pointer;letter-spacing:.06em;text-transform:none}
+.sec h4 button:hover{color:var(--text)}
+#search{width:100%;height:36px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--text);padding:0 12px 0 34px;font:inherit;font-size:13px;outline:none}
+#search:focus{border-color:var(--accent2);background:rgba(255,255,255,.08)}
+.searchwrap{position:relative}
+.searchwrap svg{position:absolute;left:11px;top:10px;width:16px;height:16px;stroke:var(--dim);fill:none;stroke-width:2;stroke-linecap:round}
+#results{margin-top:6px;display:none;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:rgba(7,12,24,.9)}
+#results.open{display:block}
+#results button{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:8px 10px;cursor:pointer}
+#results button:last-child{border-bottom:0}
+#results button:hover,#results button.hi{background:rgba(122,167,255,.14)}
+#results b{font-weight:600;font-size:13px}
+#results span{display:block;color:var(--dim);font-size:11.5px;margin-top:1px}
+.legend{display:grid;gap:3px}
+.lg{display:flex;align-items:center;gap:9px;padding:5px 8px;border-radius:8px;cursor:pointer;font-size:12.5px;color:var(--muted);user-select:none;border:1px solid transparent}
+.lg:hover{background:rgba(255,255,255,.06);color:var(--text)}
+.lg .sw{width:12px;height:12px;border-radius:4px;flex:none;box-shadow:0 0 10px currentColor}
+.lg .n{margin-left:auto;font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+.lg.off{opacity:.38}
+.lg.off .sw{box-shadow:none;filter:grayscale(1)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:12px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--muted);cursor:pointer}
+.chip:hover{color:var(--text);border-color:var(--line2)}
+.chip.on{background:rgba(122,167,255,.18);border-color:rgba(122,167,255,.6);color:#dce8ff}
+.flowlist{display:grid;gap:6px}
+.flow{display:block;width:100%;text-align:left;border:1px solid var(--line);background:rgba(255,255,255,.035);border-radius:10px;padding:8px 10px;cursor:pointer}
+.flow:hover{border-color:var(--line2);background:rgba(255,255,255,.07)}
+.flow.on{border-color:rgba(94,234,212,.6);background:rgba(94,234,212,.1)}
+.flow b{font-size:13px;font-weight:600;display:block}
+.flow span{font-size:11.5px;color:var(--dim);display:block;margin-top:2px;line-height:1.35}
+.zonelist{display:grid;gap:3px}
+.zone{display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--muted);background:none;border:0;text-align:left;width:100%}
+.zone:hover{background:rgba(255,255,255,.07);color:var(--text)}
+.zone .sw{width:9px;height:9px;border-radius:3px;flex:none}
+.zone small{margin-left:auto;color:var(--dim);font-size:11px}
+
+/* detail panel */
+#right .scroll{padding:18px 18px 22px}
+.kicker{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:650;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;flex-wrap:wrap}
+.kicker .dot{width:9px;height:9px;border-radius:3px}
+.badge{font-size:10.5px;letter-spacing:.04em;text-transform:none;font-weight:650;padding:2px 7px;border-radius:999px;border:1px solid var(--line2);color:var(--muted)}
+#right h2{margin:0 0 4px;font-size:22px;line-height:1.2;font-weight:700;letter-spacing:-.2px}
+#right .tag{color:var(--muted);font-size:13px;margin-bottom:12px}
+#right p{margin:0 0 12px;font-size:13.5px;line-height:1.55;color:#cfdaf1}
+#right h5{margin:18px 0 8px;font-size:11px;font-weight:650;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+#right ul{margin:0 0 6px;padding:0 0 0 18px;font-size:13px;line-height:1.55;color:#cfdaf1}
+#right li{margin:3px 0}
+#right li::marker{color:var(--dim)}
+code,.path{font-family:var(--mono);font-size:12px;background:rgba(122,167,255,.1);border:1px solid rgba(122,167,255,.18);padding:1px 5px;border-radius:5px;color:#cfe0ff;word-break:break-word}
+.facts{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px;margin:0 0 6px;padding:12px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.03)}
+.facts dt{color:var(--dim)}
+.facts dd{margin:0;color:var(--text);word-break:break-word}
+.tech{display:flex;flex-wrap:wrap;gap:6px}
+.tech span{font-size:12px;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid var(--line);color:#cfdaf1}
+.paths{display:grid;gap:5px}
+.conn{display:grid;gap:5px}
+.conn button{display:flex;align-items:flex-start;gap:9px;text-align:left;width:100%;border:1px solid var(--line);background:rgba(255,255,255,.035);border-radius:10px;padding:8px 10px;cursor:pointer}
+.conn button:hover{border-color:var(--line2);background:rgba(255,255,255,.08)}
+.conn .arr{color:var(--accent);font-weight:700;flex:none;width:16px;text-align:center;margin-top:1px}
+.conn b{font-size:13px;font-weight:600;display:block}
+.conn em{font-style:normal;color:var(--dim);font-size:12px;display:block;margin-top:1px;line-height:1.4}
+.cta{display:flex;gap:8px;margin:14px 0 4px;flex-wrap:wrap}
+.btn{border:1px solid var(--line2);background:rgba(255,255,255,.06);padding:9px 14px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600}
+.btn:hover{background:rgba(255,255,255,.13)}
+.btn.primary{background:linear-gradient(180deg,#34d3be,#1fae9c);color:#04201c;border-color:transparent}
+.btn.primary:hover{filter:brightness(1.08)}
+.kids{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.kids button{display:flex;align-items:center;gap:8px;text-align:left;border:1px solid var(--line);background:rgba(255,255,255,.035);border-radius:9px;padding:7px 9px;cursor:pointer;font-size:12.5px;color:var(--text)}
+.kids button:hover{border-color:var(--line2);background:rgba(255,255,255,.09)}
+.kids .sw{width:8px;height:8px;border-radius:3px;flex:none}
+.stepn{display:flex;gap:10px;margin:0 0 10px;font-size:13px;line-height:1.5;color:#cfdaf1}
+.stepn i{flex:none;width:22px;height:22px;border-radius:50%;background:rgba(94,234,212,.16);border:1px solid rgba(94,234,212,.55);color:#bffaf0;font-style:normal;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.stepn b{color:var(--text);font-weight:600}
+.close{position:absolute;right:10px;top:10px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}
+.stats div{border:1px solid var(--line);background:rgba(255,255,255,.035);border-radius:12px;padding:10px;text-align:center}
+.stats b{display:block;font-size:20px;font-weight:700}
+.stats span{font-size:11px;color:var(--dim)}
+.note{font-size:12px;color:var(--dim);line-height:1.5}
+
+/* hint + tooltip */
+#hint{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:3;font-size:12px;color:var(--muted);padding:7px 14px;border-radius:999px;white-space:nowrap;pointer-events:none;transition:opacity .4s}
+#hint kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line2);border-bottom-width:2px;border-radius:5px;padding:0 5px;margin:0 2px;color:var(--text)}
+#tip{position:absolute;z-index:6;pointer-events:none;max-width:280px;padding:9px 11px;border-radius:10px;background:rgba(6,10,20,.94);border:1px solid var(--line2);box-shadow:0 10px 30px rgba(0,0,0,.5);font-size:12.5px;line-height:1.4;opacity:0;transition:opacity .12s}
+#tip b{display:block;font-size:13px;margin-bottom:2px}
+#tip span{color:var(--muted)}
+#tip i{display:block;font-style:normal;color:var(--accent);margin-top:5px;font-size:11.5px}
+#toast{position:absolute;left:50%;top:70px;transform:translateX(-50%);z-index:7;padding:8px 14px;border-radius:10px;background:rgba(6,10,20,.92);border:1px solid var(--line2);font-size:12.5px;opacity:0;pointer-events:none;transition:opacity .25s}
+#loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:20;background:var(--bg0);transition:opacity .6s;color:var(--muted);font-size:14px}
+#loading.gone{opacity:0;pointer-events:none}
+
+@media (max-width:1180px){#right{width:340px}#left{width:262px}}
+@media (max-width:900px){
+
+  #left{width:min(300px,86vw);z-index:8}
+
+  #right{left:12px;right:12px;width:auto;top:auto;height:46vh;transition:transform .25s}
+  #right.empty{transform:translateY(120%)}
+  #hint{display:none}
+  .ibtn .lbl{display:none}
+  #brand small{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="c" aria-label="Interactive 3D architecture map" role="img"></canvas>
+  <!-- Everything below is generic UI. The content lives in the ARCHITECTURE DATA region of the script. -->
+
+  <div id="top" class="glass">
+    <button class="ibtn" id="menuBtn" title="Menu"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    <div id="brand" title="Back to overview">
+      <svg class="mark" viewBox="0 0 24 24" fill="none" stroke="#5eead4" stroke-width="1.6" stroke-linejoin="round"><path d="M12 2.5 21 7.5v9l-9 5-9-5v-9z"/><path d="M12 12.5 21 7.5M12 12.5 3 7.5M12 12.5v9" stroke="#7aa7ff"/></svg>
+      <span><span id="brandName">Architecture</span> <small id="brandSub">3D map</small></span>
+    </div>
+    <nav id="crumbs" aria-label="Breadcrumb"></nav>
+    <div class="tb">
+      <button class="ibtn" id="bInfo" title="About this map"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg><span class="lbl">Overview</span></button>
+      <button class="ibtn" id="bBack" title="Up one level (Esc)"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg><span class="lbl">Back</span><span class="cnt"></span></button>
+      <button class="ibtn" id="bHome" title="Reset camera (R)"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/></svg><span class="lbl">Reset view</span></button>
+      <button class="ibtn" id="bRot" title="Auto-rotate (A)"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/></svg><span class="lbl">Rotate</span></button>
+      <button class="ibtn on" id="bLbl" title="Labels (L)"><svg viewBox="0 0 24 24"><path d="M4 7h16v10H4z"/><path d="M8 12h8"/></svg><span class="lbl">Labels</span></button>
+      <button class="ibtn on" id="bFlow" title="Animate traffic (F)"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg><span class="lbl">Traffic</span></button>
+      <button class="ibtn" id="bFull" title="Fullscreen"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+    </div>
+  </div>
+
+  <aside id="left" class="side glass">
+    <div class="scroll">
+      <div class="sec">
+        <div class="searchwrap"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input id="search" type="search" placeholder="Search systems, tools, Google services…  ( / )" autocomplete="off"></div>
+        <div id="results"></div>
+      </div>
+      <div class="sec"><h4>Districts <button id="zAll">show all</button></h4><div class="zonelist" id="zones"></div></div>
+      <div class="sec"><h4>Guided flows <button id="fClear">clear</button></h4><div class="flowlist" id="flows"></div></div>
+      <div class="sec"><h4>Spotlight by provider</h4>
+        <div class="chips" id="prov"></div>
+      </div>
+      <div class="sec"><h4>Layers <button id="lAll">all</button></h4><div class="legend" id="legend"></div></div>
+      <div class="sec"><h4>Connection types</h4><div class="legend" id="elegend"></div></div>
+      <p class="note">Everything on this page is drawn from the repository (docs, config, Terraform and code). Drag to orbit · right-drag or <kbd>Shift</kbd>-drag to pan · scroll to zoom · click a block to inspect · double-click (or “Open inside”) to dive in.</p>
+    </div>
+  </aside>
+
+  <aside id="right" class="side glass empty"><div class="scroll" id="detail"></div></aside>
+
+  <div id="hint" class="glass"><kbd>drag</kbd> orbit · <kbd>scroll</kbd> zoom · <kbd>click</kbd> inspect · <kbd>double-click</kbd> dive in · <kbd>Esc</kbd> back</div>
+  <div id="tip"></div>
+  <div id="toast"></div>
+  <div id="loading">Building the map…</div>
+</div>
+<script>
+/* =====================================================================
+   3D ENGINE — dependency-free perspective renderer on Canvas 2D.
+   World: x → right, y → up, z → toward the default viewer.
+   Painter's algorithm with grouped plates (districts) + sorted items.
+   ===================================================================== */
+const Engine = (() => {
+  const TAU = Math.PI * 2;
+  const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const easeIO = t => (t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+  const easeOut = t => 1 - Math.pow(1 - t, 3);
+  const easeIn = t => t * t * t;
+  const angDiff = (a, b) => { let d = (b - a) % TAU; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU; return d; };
+  const hex2rgb = h => { h = h.replace('#', ''); if (h.length === 3) h = h.split('').map(c => c + c).join(''); const n = parseInt(h, 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
+  const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  const css = (c, a) => a === undefined ? `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})` : `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
+  const WHITE = [255, 255, 255], BG = [9, 14, 28];
+  const FONT = 'ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,"Helvetica Neue",Arial,sans-serif';
+
+  /* ---------------- canvas + camera ---------------- */
+  const cv = document.getElementById('c');
+  const ctx = cv.getContext('2d');
+  let W = 800, H = 600, DPR = 1, CX = 400, CY = 300, F = 600;
+  const FOV = 0.82, NEAR = 0.25;
+  const cam = { tx: 0, ty: 0, tz: 0, yaw: .35, pitch: .72, dist: 40 };
+  let px = 0, py = 0, pz = 0, rx = 1, rz = 0, ux = 0, uy = 1, uz = 0, fx = 0, fy = -1, fz = 0;
+  let inset = { l: 0, r: 0, t: 0, b: 0 };           // space covered by UI panels
+  let insetNow = { l: 0, r: 0, t: 0, b: 0 };
+
+  function updateCamera() {
+    const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+    px = cam.tx + cam.dist * cp * Math.sin(cam.yaw);
+    py = cam.ty + cam.dist * sp;
+    pz = cam.tz + cam.dist * cp * Math.cos(cam.yaw);
+    fx = cam.tx - px; fy = cam.ty - py; fz = cam.tz - pz;
+    const fl = Math.hypot(fx, fy, fz); fx /= fl; fy /= fl; fz /= fl;
+    rx = -fz; rz = fx; const rl = Math.hypot(rx, rz); rx /= rl; rz /= rl;
+    ux = -rz * fy; uy = rz * fx - rx * fz; uz = rx * fy;
+    F = (H / 2) / Math.tan(FOV / 2);
+    insetNow.l += (inset.l - insetNow.l) * .12; insetNow.r += (inset.r - insetNow.r) * .12; insetNow.t += (inset.t - insetNow.t) * .12; insetNow.b += (inset.b - insetNow.b) * .12;
+    CX = (insetNow.l + (W - insetNow.r)) / 2;
+    CY = (insetNow.t + (H - insetNow.b)) / 2;
+  }
+  let _x = 0, _y = 0, _z = 0;
+  function cam3(x, y, z) {
+    const dx = x - px, dy = y - py, dz = z - pz;
+    _x = dx * rx + dz * rz; _y = dx * ux + dy * uy + dz * uz; _z = dx * fx + dy * fy + dz * fz;
+  }
+  function project(x, y, z) { cam3(x, y, z); if (_z < NEAR) return null; const k = F / _z; return [CX + _x * k, CY - _y * k, _z]; }
+  function projPoly(v) {
+    const n = v.length; let cs = new Array(n), behind = 0;
+    for (let i = 0; i < n; i++) { cam3(v[i][0], v[i][1], v[i][2]); cs[i] = [_x, _y, _z]; if (_z < NEAR) behind++; }
+    if (behind === n) return null;
+    if (behind) {
+      const out = [];
+      for (let i = 0; i < n; i++) {
+        const a = cs[i], b = cs[(i + 1) % n], ai = a[2] >= NEAR, bi = b[2] >= NEAR;
+        if (ai) out.push(a);
+        if (ai !== bi) { const t = (NEAR - a[2]) / (b[2] - a[2]); out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, NEAR]); }
+      }
+      cs = out;
+    }
+    return cs.map(c => { const k = F / c[2]; return [CX + c[0] * k, CY - c[1] * k]; });
+  }
+  function pathPoly(p) { ctx.beginPath(); ctx.moveTo(p[0][0], p[0][1]); for (let i = 1; i < p.length; i++) ctx.lineTo(p[i][0], p[i][1]); ctx.closePath(); }
+  function inPoly(p, x, y) {
+    let c = false;
+    for (let i = 0, j = p.length - 1; i < p.length; j = i++) {
+      const xi = p[i][0], yi = p[i][1], xj = p[j][0], yj = p[j][1];
+      if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c;
+    }
+    return c;
+  }
+  // affine transform that lays a local 2D drawing space onto the ground plane at (x,y,z)
+  function groundXform(x, y, z) {
+    const o = project(x, y, z), a = project(x + 1, y, z), b = project(x, y, z + 1);
+    if (!o || !a || !b) return null;
+    return { o, ax: a[0] - o[0], ay: a[1] - o[1], bx: b[0] - o[0], by: b[1] - o[1] };
+  }
+  // choose a readable orientation (0..3 quarter turns) for text on the ground
+  function readableAxes(g) {
+    const cands = [[g.ax, g.ay, g.bx, g.by], [g.bx, g.by, -g.ax, -g.ay], [-g.ax, -g.ay, -g.bx, -g.by], [-g.bx, -g.by, g.ax, g.ay]];
+    let best = cands[0], s = -1e9;
+    for (const c of cands) { const sc = c[0] - Math.abs(c[1]) * .2; if (sc > s) { s = sc; best = c; } }
+    return best;
+  }
+
+  /* ---------------- state ---------------- */
+  const st = {
+    hover: null, sel: null, zone: null, labels: true, particles: true, rotate: false, showEdges: true,
+    catOn: {}, kindOn: {}, prov: 'all', flow: null, time: 0, idleSince: 0, transition: null, originBox: null,
+    search: null,
+  };
+  const cb = { select() { }, hover() { }, enter() { }, empty() { }, zone() { } };
+  let scene = null, tween = null, items = [], hit = { boxes: [], plates: [], edges: [], labels: [] };
+  let catColor = {}, edgeKinds = {}, provCfg = {};
+
+  /* ---------------- scene construction ---------------- */
+  function buildScene(def, ctxInfo) {
+    const sc = { def, plates: [], boxes: [], edges: [], byId: new Map(), plateById: new Map(), t0: performance.now(), bounds: null, cats: ctxInfo.cats, resolveGhost: ctxInfo.resolveGhost };
+    const stagger = 38;
+    let n = 0;
+    for (const d of def.zones) {
+      const cell = d.cell || 2.2, pad = d.pad != null ? d.pad : .9, titleH = d.noTitle ? 0 : 1.9;
+      const w = d.cols * cell + pad * 2, dp = d.rows * cell + pad * 2 + titleH;
+      const p = {
+        kind: 'plate', id: d.id, def: d, name: d.name, tag: d.tag || '', x: d.x, z: d.z, w, d: dp, y: d.y || 0, th: .3,
+        color: hex2rgb(d.color), cell, pad, titleH, cols: d.cols, rows: d.rows, x0: d.x - w / 2, z0: d.z - dp / 2,
+        alpha: 0, appear: (n++) * 55, big: !!d.big,
+      };
+      sc.plates.push(p); sc.plateById.set(d.id, p);
+    }
+    for (const nd of def.nodes) {
+      const p = sc.plateById.get(nd.zone); if (!p) { console.warn('no zone', nd.id, nd.zone); continue; }
+      const span = nd.span || [1, 1];
+      const cat = sc.cats[nd.cat] || { color: '#aaa' };
+      const fw = span[0] * p.cell * .66, fd = span[1] * p.cell * .66;
+      const b = {
+        kind: 'box', id: nd.id, def: nd, name: nd.name, zone: nd.zone, plate: p, cat: nd.cat, prov: nd.prov || 'own',
+        x: p.x0 + p.pad + (nd.c + span[0] / 2) * p.cell, z: p.z0 + p.pad + (nd.r + span[1] / 2) * p.cell,
+        w: fw, d: fd, h: nd.h || 1, y0: p.y + p.th, color: hex2rgb(cat.color), icon: nd.icon || cat.icon,
+        alpha: 0, grow: 0, appear: 160 + (n++) * stagger, hasKids: !!nd.inside, ghost: false, prio: nd.h || 1,
+      };
+      sc.boxes.push(b); sc.byId.set(nd.id, b);
+    }
+    // ghost neighbours (context from the level above)
+    if (def.ext && def.ext.length) {
+      const P = (() => { let a = 1e9, b = -1e9, c = 1e9, d = -1e9; for (const p of sc.plates) { a = Math.min(a, p.x0); b = Math.max(b, p.x0 + p.w); c = Math.min(c, p.z0); d = Math.max(d, p.z0 + p.d); } return { x0: a, z0: c, w: b - a, d: d - c, y: 0, th: .3 }; })();
+      const bySide = {};
+      for (const g of def.ext) (bySide[g.side || 'back'] = bySide[g.side || 'back'] || []).push(g);
+      for (const side in bySide) {
+        const arr = bySide[side];
+        arr.forEach((g, i) => {
+          const src = sc.resolveGhost(g.ref); if (!src) return;
+          const cat = sc.cats[src.cat] || { color: '#aaa' };
+          let x, z; const gap = 3.4, f = (i + 1) / (arr.length + 1);
+          if (side === 'back' || side === 'front') { x = P.x0 + P.w * f; z = side === 'back' ? P.z0 - gap : P.z0 + P.d + gap; }
+          else { z = P.z0 + P.d * f; x = side === 'left' ? P.x0 - gap - 1 : P.x0 + P.w + gap + 1; }
+          const b = {
+            kind: 'box', id: g.ref, def: src, name: src.name, zone: '__ghost', plate: { y: 0, th: 0 }, cat: src.cat, prov: src.prov || 'own',
+            x, z, w: 1.45, d: 1.45, h: .7, y0: 0, color: hex2rgb(cat.color), icon: src.icon || cat.icon,
+            alpha: 0, grow: 0, appear: 700 + (n++) * 40, hasKids: false, ghost: true, prio: .2,
+          };
+          sc.boxes.push(b); sc.byId.set('ghost:' + g.ref, b);
+        });
+      }
+    }
+    // edges
+    const pair = {};
+    for (const e of def.edges || []) {
+      const a = sc.byId.get(e.a) || sc.byId.get('ghost:' + e.a), b = sc.byId.get(e.b) || sc.byId.get('ghost:' + e.b);
+      if (!a || !b || a === b) continue;
+      const key = a.id < b.id ? a.id + '|' + b.id : b.id + '|' + a.id;
+      (pair[key] = pair[key] || []).push(e);
+      const ed = { kind: 'edge', def: e, a, b, k: e.kind || 'http', label: e.label || '', alpha: 0, appear: 420 + (n++) * 8, phase: Math.random(), pts: null };
+      sc.edges.push(ed);
+      ed.pairIdx = pair[key].length - 1; ed.pairKey = key;
+    }
+    for (const ed of sc.edges) ed.pairN = pair[ed.pairKey].length;
+    // bounds
+    let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
+    for (const p of sc.plates) { x0 = Math.min(x0, p.x0); x1 = Math.max(x1, p.x0 + p.w); z0 = Math.min(z0, p.z0); z1 = Math.max(z1, p.z0 + p.d); }
+    if (sc.boxes.some(b => b.ghost)) { x0 -= 2.5; x1 += 2.5; z0 -= 2.5; z1 += 2.5; }
+    sc.bounds = { x0, x1, z0, z1, cx: (x0 + x1) / 2, cz: (z0 + z1) / 2, rx: (x1 - x0) / 2, rz: (z1 - z0) / 2 };
+    return sc;
+  }
+
+  // exact fit: project the points with a hypothetical camera, binary-search the distance so they all land
+  // inside the free viewport, and re-centre the target on their screen-space bounding box.
+  function projectPts(pts, tx, tz, yaw, pitch, dist) {
+    const cp = Math.cos(pitch), sp = Math.sin(pitch), fl = (H / 2) / Math.tan(FOV / 2);
+    const cxp = (inset.l + (W - inset.r)) / 2, cyp = (inset.t + (H - inset.b)) / 2;
+    const ex = tx + dist * cp * Math.sin(yaw), ey = dist * sp, ez = tz + dist * cp * Math.cos(yaw);
+    let ffx = tx - ex, ffy = -ey, ffz = tz - ez; const fl2 = Math.hypot(ffx, ffy, ffz); ffx /= fl2; ffy /= fl2; ffz /= fl2;
+    let rrx = -ffz, rrz = ffx; const rl = Math.hypot(rrx, rrz); rrx /= rl; rrz /= rl;
+    const uux = -rrz * ffy, uuy = rrz * ffx - rrx * ffz, uuz = rrx * ffy;
+    const out = [];
+    for (const q of pts) {
+      const dx = q[0] - ex, dy = q[1] - ey, dz = q[2] - ez;
+      const x = dx * rrx + dz * rrz, y = dx * uux + dy * uuy + dz * uuz, z = dx * ffx + dy * ffy + dz * ffz;
+      if (z < .5) { out.push(null); continue; }
+      const k = fl / z; out.push([cxp + x * k, cyp - y * k]);
+    }
+    return { pts: out, cxp, cyp, rrx, rrz, gx: ffx, gz: ffz, sp };
+  }
+  function fitPoints(pts, tx0, tz0, yaw, pitch) {
+    const L = inset.l + 18, R = W - inset.r - 18, T = inset.t + 16, B = H - inset.b - 18, tv = Math.tan(FOV / 2);
+    let tx = tx0, tz = tz0, dist = 60;
+    for (let it = 0; it < 4; it++) {
+      let lo = 4, hi = 600;
+      for (let i = 0; i < 26; i++) {
+        const m = (lo + hi) / 2, pr = projectPts(pts, tx, tz, yaw, pitch, m).pts;
+        const ok = pr.every(q => q && q[0] >= L && q[0] <= R && q[1] >= T && q[1] <= B);
+        if (ok) hi = m; else lo = m;
+      }
+      dist = hi;
+      const P = projectPts(pts, tx, tz, yaw, pitch, dist), v = P.pts.filter(Boolean);
+      if (!v.length) break;
+      const bx = (Math.min(...v.map(q => q[0])) + Math.max(...v.map(q => q[0]))) / 2, by = (Math.min(...v.map(q => q[1])) + Math.max(...v.map(q => q[1]))) / 2;
+      const offx = bx - (L + R) / 2, offy = by - (T + B) / 2, sc = dist * tv * 2 / H, gl = Math.hypot(P.gx, P.gz) || 1;
+      tx += P.rrx * offx * sc - (P.gx / gl) * offy * sc / Math.max(.4, P.sp);
+      tz += P.rrz * offx * sc - (P.gz / gl) * offy * sc / Math.max(.4, P.sp);
+    }
+    return { dist, tx, tz };
+  }
+  function platePts(list) {
+    const pts = [];
+    for (const p of list) for (const [x, z] of [[p.x0, p.z0], [p.x0 + p.w, p.z0], [p.x0 + p.w, p.z0 + p.d], [p.x0, p.z0 + p.d]]) { pts.push([x, 0, z]); pts.push([x, 2.6, z]); }
+    return pts;
+  }
+  function homePose(sc) {
+    const b = sc.bounds, pitch = .74, yaw = .32, pts = platePts(sc.plates);
+    for (const g of sc.boxes) if (g.ghost) pts.push([g.x, 0, g.z]);
+    const f = fitPoints(pts, b.cx, b.cz, yaw, pitch);
+    return { tx: f.tx, ty: 0, tz: f.tz, yaw, pitch, dist: f.dist };
+  }
+  function plateFocusPose(p) {
+    const pitch = .8, yaw = cam.yaw, f = fitPoints(platePts([p]), p.x, p.z, yaw, pitch);
+    return { tx: f.tx, ty: 0, tz: f.tz, yaw, pitch, dist: f.dist * .97 };
+  }
+  function boxFocusPose(b, keepYaw) {
+    return { tx: b.x, ty: b.y0 + b.h * .4, tz: b.z, yaw: cam.yaw, pitch: Math.max(cam.pitch, .62), dist: Math.min(cam.dist, Math.max(11, cam.dist * .68)) };
+  }
+
+  /* ---------------- tweens ---------------- */
+  function flyTo(pose, ms, ease, done) {
+    tween = { from: { tx: cam.tx, ty: cam.ty, tz: cam.tz, yaw: cam.yaw, pitch: cam.pitch, dist: cam.dist }, to: pose, t0: performance.now(), ms: ms || 900, ease: ease || easeIO, done };
+  }
+  function stepTween(now) {
+    if (!tween) return;
+    const t = clamp((now - tween.t0) / tween.ms, 0, 1), k = tween.ease(t), a = tween.from, b = tween.to;
+    cam.tx = lerp(a.tx, b.tx, k); cam.ty = lerp(a.ty, b.ty, k); cam.tz = lerp(a.tz, b.tz, k);
+    cam.yaw = a.yaw + angDiff(a.yaw, b.yaw) * k; cam.pitch = lerp(a.pitch, b.pitch, k); cam.dist = lerp(a.dist, b.dist, k);
+    if (t >= 1) { const d = tween.done; tween = null; if (d) d(); }
+  }
+
+  /* ---------------- icons (unit square, centred) ---------------- */
+  const ICON = {
+    person(c) { c.arc(0, -.16, .17, 0, TAU); c.moveTo(-.3, .32); c.quadraticCurveTo(-.3, .02, 0, .02); c.quadraticCurveTo(.3, .02, .3, .32); },
+    window(c) { c.rect(-.34, -.28, .68, .56); c.moveTo(-.34, -.1); c.lineTo(.34, -.1); c.moveTo(-.22, -.19); c.lineTo(-.14, -.19); },
+    cog(c) { c.arc(0, 0, .13, 0, TAU); for (let i = 0; i < 8; i++) { const a = i * TAU / 8; c.moveTo(Math.cos(a) * .2, Math.sin(a) * .2); c.lineTo(Math.cos(a) * .32, Math.sin(a) * .32); } c.moveTo(.2, 0); c.arc(0, 0, .2, 0, TAU); },
+    server(c) { c.rect(-.32, -.3, .64, .24); c.rect(-.32, .06, .64, .24); c.moveTo(-.2, -.18); c.lineTo(-.1, -.18); c.moveTo(-.2, .18); c.lineTo(-.1, .18); },
+    db(c) { c.ellipse(0, -.22, .3, .1, 0, 0, TAU); c.moveTo(-.3, -.22); c.lineTo(-.3, .22); c.ellipse(0, .22, .3, .1, 0, 0, Math.PI); c.moveTo(.3, .22); c.lineTo(.3, -.22); c.moveTo(-.3, 0); c.ellipse(0, 0, .3, .1, 0, Math.PI, 0, true); },
+    cloud(c) { c.moveTo(-.28, .2); c.arc(-.2, .06, .14, Math.PI * .6, Math.PI * 1.5); c.arc(-.02, -.1, .2, Math.PI * 1.1, Math.PI * 1.9); c.arc(.2, .06, .14, Math.PI * 1.5, Math.PI * .4); c.closePath(); },
+    shield(c) { c.moveTo(0, -.34); c.lineTo(.28, -.2); c.lineTo(.26, .08); c.quadraticCurveTo(.2, .26, 0, .34); c.quadraticCurveTo(-.2, .26, -.26, .08); c.lineTo(-.28, -.2); c.closePath(); c.moveTo(-.1, 0); c.lineTo(-.02, .08); c.lineTo(.12, -.1); },
+    chat(c) { c.moveTo(-.32, -.24); c.lineTo(.32, -.24); c.lineTo(.32, .12); c.lineTo(-.02, .12); c.lineTo(-.18, .3); c.lineTo(-.16, .12); c.lineTo(-.32, .12); c.closePath(); },
+    spark(c) { c.moveTo(0, -.34); c.quadraticCurveTo(.04, -.04, .34, 0); c.quadraticCurveTo(.04, .04, 0, .34); c.quadraticCurveTo(-.04, .04, -.34, 0); c.quadraticCurveTo(-.04, -.04, 0, -.34); c.moveTo(.2, -.3); c.lineTo(.2, -.2); c.moveTo(.15, -.25); c.lineTo(.25, -.25); },
+    mail(c) { c.rect(-.34, -.22, .68, .44); c.moveTo(-.34, -.22); c.lineTo(0, .05); c.lineTo(.34, -.22); },
+    pin(c) { c.moveTo(0, .34); c.bezierCurveTo(-.3, -.02, -.28, -.34, 0, -.34); c.bezierCurveTo(.28, -.34, .3, -.02, 0, .34); c.moveTo(.09, -.14); c.arc(0, -.14, .09, 0, TAU); },
+    chart(c) { c.moveTo(-.32, -.3); c.lineTo(-.32, .3); c.lineTo(.34, .3); c.rect(-.2, .02, .1, .2); c.rect(-.03, -.12, .1, .34); c.rect(.14, -.26, .1, .48); },
+    flow(c) { c.moveTo(-.34, -.18); c.lineTo(.12, -.18); c.moveTo(.02, -.28); c.lineTo(.14, -.18); c.lineTo(.02, -.08); c.moveTo(.34, .18); c.lineTo(-.12, .18); c.moveTo(-.02, .08); c.lineTo(-.14, .18); c.lineTo(-.02, .28); },
+    term(c) { c.rect(-.34, -.26, .68, .52); c.moveTo(-.22, -.1); c.lineTo(-.1, 0); c.lineTo(-.22, .1); c.moveTo(0, .1); c.lineTo(.18, .1); },
+    key(c) { c.arc(-.16, 0, .15, 0, TAU); c.moveTo(-.01, 0); c.lineTo(.34, 0); c.moveTo(.22, 0); c.lineTo(.22, .13); c.moveTo(.32, 0); c.lineTo(.32, .1); },
+    cube(c) { c.moveTo(0, -.34); c.lineTo(.3, -.17); c.lineTo(.3, .17); c.lineTo(0, .34); c.lineTo(-.3, .17); c.lineTo(-.3, -.17); c.closePath(); c.moveTo(0, 0); c.lineTo(.3, -.17); c.moveTo(0, 0); c.lineTo(-.3, -.17); c.moveTo(0, 0); c.lineTo(0, .34); },
+    clock(c) { c.arc(0, 0, .3, 0, TAU); c.moveTo(0, -.16); c.lineTo(0, 0); c.lineTo(.12, .08); },
+    bell(c) { c.moveTo(-.26, .16); c.quadraticCurveTo(-.2, .1, -.2, -.06); c.arc(0, -.06, .2, Math.PI, 0); c.quadraticCurveTo(.2, .1, .26, .16); c.closePath(); c.moveTo(-.06, .24); c.arc(0, .24, .06, Math.PI, 0, true); },
+    search(c) { c.arc(-.07, -.07, .2, 0, TAU); c.moveTo(.08, .08); c.lineTo(.3, .3); },
+    doc(c) { c.moveTo(-.22, -.34); c.lineTo(.1, -.34); c.lineTo(.26, -.18); c.lineTo(.26, .34); c.lineTo(-.22, .34); c.closePath(); c.moveTo(-.12, -.04); c.lineTo(.16, -.04); c.moveTo(-.12, .08); c.lineTo(.16, .08); c.moveTo(-.12, .2); c.lineTo(.06, .2); },
+    bolt(c) { c.moveTo(.1, -.34); c.lineTo(-.2, .06); c.lineTo(0, .06); c.lineTo(-.1, .34); c.lineTo(.22, -.08); c.lineTo(.02, -.08); c.closePath(); },
+    globe(c) { c.arc(0, 0, .3, 0, TAU); c.ellipse(0, 0, .13, .3, 0, 0, TAU); c.moveTo(-.3, 0); c.lineTo(.3, 0); },
+    lock(c) { c.rect(-.24, -.04, .48, .34); c.moveTo(-.14, -.04); c.arc(0, -.12, .14, Math.PI, 0); c.moveTo(0, .08); c.lineTo(0, .18); },
+    phone(c) { c.rect(-.17, -.32, .34, .64); c.moveTo(-.07, .22); c.lineTo(.07, .22); },
+    mic(c) { c.rect(-.1, -.32, .2, .36); c.moveTo(-.22, -.04); c.arc(0, -.04, .22, Math.PI, 0, true); c.moveTo(0, .18); c.lineTo(0, .32); c.moveTo(-.1, .32); c.lineTo(.1, .32); },
+    layers(c) { c.moveTo(0, -.3); c.lineTo(.34, -.12); c.lineTo(0, .06); c.lineTo(-.34, -.12); c.closePath(); c.moveTo(-.34, .06); c.lineTo(0, .24); c.lineTo(.34, .06); c.moveTo(-.34, .2); c.lineTo(0, .38); c.lineTo(.34, .2); },
+    branch(c) { c.arc(-.18, -.22, .07, 0, TAU); c.moveTo(-.11, .22); c.arc(-.18, .22, .07, 0, TAU); c.moveTo(.3, -.08); c.arc(.23, -.08, .07, 0, TAU); c.moveTo(-.18, -.15); c.lineTo(-.18, .15); c.moveTo(-.18, .0); c.quadraticCurveTo(.23, .02, .23, -.01); },
+    tag(c) { c.moveTo(-.3, -.3); c.lineTo(.04, -.3); c.lineTo(.32, -.02); c.lineTo(.04, .26); c.lineTo(-.3, -.08); c.closePath(); c.moveTo(-.14, -.17); c.arc(-.18, -.17, .04, 0, TAU); },
+    users(c) { c.arc(-.1, -.14, .12, 0, TAU); c.moveTo(-.32, .28); c.quadraticCurveTo(-.32, .04, -.1, .04); c.quadraticCurveTo(.12, .04, .12, .28); c.moveTo(.2, -.2); c.arc(.14, -.2, .08, 0, TAU); c.moveTo(.2, .08); c.quadraticCurveTo(.32, .08, .34, .26); },
+    eye(c) { c.moveTo(-.34, 0); c.quadraticCurveTo(0, -.34, .34, 0); c.quadraticCurveTo(0, .34, -.34, 0); c.moveTo(.1, 0); c.arc(0, 0, .1, 0, TAU); },
+    wrench(c) { c.moveTo(-.28, .28); c.lineTo(.04, -.04); c.moveTo(.1, -.3); c.arc(.1, -.16, .14, -Math.PI / 2, Math.PI * 1.3); },
+    brain(c) { c.moveTo(0, -.32); c.lineTo(0, .32); c.moveTo(-.04, -.28); c.arc(-.14, -.16, .12, -Math.PI / 2, Math.PI * .8, true); c.moveTo(-.04, .02); c.arc(-.14, .15, .13, -Math.PI / 2, Math.PI * .8, true); c.moveTo(.04, -.28); c.arc(.14, -.16, .12, -Math.PI / 2, Math.PI * .2); c.moveTo(.04, .02); c.arc(.14, .15, .13, -Math.PI / 2, Math.PI * .2); },
+  };
+  function drawIcon(name, g, size, color, alpha) {
+    const fn = ICON[name]; if (!fn || !g) return;
+    const ax = readableAxes(g);
+    ctx.save();
+    ctx.transform(ax[0] * size, ax[1] * size, ax[2] * size, ax[3] * size, g.o[0], g.o[1]);
+    ctx.globalAlpha *= alpha; ctx.strokeStyle = color; ctx.lineWidth = .075; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.beginPath(); fn(ctx); ctx.stroke();
+    ctx.restore();
+  }
+  function drawFlatText(text, wx, wy, wz, size, font, color, alpha, align) {
+    const g = groundXform(wx, wy, wz); if (!g) return;
+    const ax = readableAxes(g), S = 40, k = size / S;
+    ctx.save();
+    ctx.transform(ax[0] * k, ax[1] * k, ax[2] * k, ax[3] * k, g.o[0], g.o[1]);
+    ctx.globalAlpha *= alpha; ctx.fillStyle = color; ctx.font = font.replace('#', S); ctx.textAlign = align || 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(text, 0, 0);
+    ctx.restore();
+  }
+
+  /* ---------------- text measure cache ---------------- */
+  const mcache = new Map();
+  function tw(text, font) { const k = font + '|' + text; let v = mcache.get(k); if (v === undefined) { ctx.font = font; v = ctx.measureText(text).width; if (mcache.size > 2000) mcache.clear(); mcache.set(k, v); } return v; }
+
+  /* ---------------- per-frame logic ---------------- */
+  const L = (() => { const v = [-.45, .85, .38], l = Math.hypot(...v); return v.map(x => x / l); })();
+  function faceColor(base, n, ghost) {
+    const sh = .26 + .74 * Math.max(0, n[0] * L[0] + n[1] * L[1] + n[2] * L[2]);
+    const dark = mix(BG, base, .26), lit = mix(base, WHITE, .12);
+    return css(mix(dark, lit, sh));
+  }
+  function boxTargetAlpha(b, now) {
+    if (now < b.appear) return 0;
+    let t = 1;
+    if (st.transition === 'out') return b === st.originBox ? 1 : 0;
+    if (b.ghost) t = .62;
+    if (!b.ghost && st.catOn[b.cat] === false) t = .05;
+    if (st.prov !== 'all' && b.prov !== st.prov) t = Math.min(t, .14);
+    if (st.zone && !b.ghost && b.zone !== st.zone) t = Math.min(t, .2);
+    if (st.flow && !st.flow.nodes.has(b.id)) t = Math.min(t, .16);
+    if (st.search && !st.search.has(b.id)) t = Math.min(t, .18);
+    return t;
+  }
+  function plateTargetAlpha(p, now) {
+    if (now < p.appear) return 0;
+    if (st.transition === 'out') return 0;
+    let t = 1;
+    if (st.zone && p.id !== st.zone) t = .3;
+    if (st.flow) t = Math.min(t, .55);
+    return t;
+  }
+  function edgeTargetAlpha(e, now) {
+    if (now < e.appear) return 0;
+    if (st.transition === 'out') return 0;
+    if (st.kindOn[e.k] === false) return 0;
+    let t = Math.min(e.a.alpha, e.b.alpha);
+    const sel = st.sel, minor = !!e.def.minor;
+    if (st.flow) t *= .08;
+    else if (sel && sel.kind === 'box') t *= (e.a === sel || e.b === sel) ? 1.4 : (minor ? 0 : .22);
+    else if (sel && sel.kind === 'edge') t *= (e === sel) ? 1.4 : (minor ? 0 : .22);
+    else if (st.zone) { const inz = e.a.zone === st.zone || e.b.zone === st.zone; t *= inz ? 1 : (minor ? 0 : .2); }
+    else t *= minor ? 0 : (scene.def.edgeBase != null ? scene.def.edgeBase : 1);
+    if (st.catOn[e.a.cat] === false || st.catOn[e.b.cat] === false) t *= .15;
+    return t;
+  }
+
+  function edgeGeom(e) {
+    const a = e.a, b = e.b;
+    const ay = a.y0 + a.h * a.grow, by = b.y0 + b.h * b.grow;
+    let dx = b.x - a.x, dz = b.z - a.z; const len = Math.hypot(dx, dz) || 1; dx /= len; dz /= len;
+    const sa = Math.min(a.w, a.d) * .26, sb = Math.min(b.w, b.d) * .26;
+    // fan-out multiple edges between the same pair
+    const off = (e.pairIdx - (e.pairN - 1) / 2) * .42;
+    const nx = -dz, nz = dx;
+    const p0 = [a.x + dx * sa + nx * off, ay + .04, a.z + dz * sa + nz * off];
+    const p2 = [b.x - dx * sb + nx * off, by + .04, b.z - dz * sb + nz * off];
+    const arc = .6 + Math.min(len, 50) * .1 + Math.abs(ay - by) * .3 + (e.pairIdx) * .4;
+    const p1 = [(p0[0] + p2[0]) / 2, Math.max(p0[1], p2[1]) + arc, (p0[2] + p2[2]) / 2];
+    e.p0 = p0; e.p1 = p1; e.p2 = p2; e.len = len;
+  }
+  function bez(e, t, out) {
+    const u = 1 - t, a = u * u, b = 2 * u * t, c = t * t;
+    out[0] = a * e.p0[0] + b * e.p1[0] + c * e.p2[0]; out[1] = a * e.p0[1] + b * e.p1[1] + c * e.p2[1]; out[2] = a * e.p0[2] + b * e.p1[2] + c * e.p2[2];
+  }
+
+  /* ---------------- drawing ---------------- */
+  function drawGrid() {
+    const b = scene.bounds, R = Math.max(b.rx, b.rz) + 26, step = 4, cx = Math.round(b.cx / step) * step, cz = Math.round(b.cz / step) * step;
+    ctx.lineWidth = 1;
+    for (let i = -R; i <= R; i += step) {
+      for (const horiz of [0, 1]) {
+        const a = horiz ? [cx - R, -.02, cz + i] : [cx + i, -.02, cz - R], c = horiz ? [cx + R, -.02, cz + i] : [cx + i, -.02, cz + R];
+        const pa = cl(a, c); if (!pa) continue;
+        const dd = Math.abs(i) / R;
+        ctx.strokeStyle = `rgba(110,140,200,${(.1 * (1 - dd * dd)).toFixed(3)})`;
+        ctx.beginPath(); ctx.moveTo(pa[0], pa[1]); ctx.lineTo(pa[2], pa[3]); ctx.stroke();
+      }
+    }
+  }
+  function cl(a, c) {
+    cam3(a[0], a[1], a[2]); let ax = _x, ay = _y, az = _z;
+    cam3(c[0], c[1], c[2]); let bx = _x, by = _y, bz = _z;
+    if (az < NEAR && bz < NEAR) return null;
+    if (az < NEAR) { const t = (NEAR - az) / (bz - az); ax += (bx - ax) * t; ay += (by - ay) * t; az = NEAR; }
+    else if (bz < NEAR) { const t = (NEAR - bz) / (az - bz); bx += (ax - bx) * t; by += (ay - by) * t; bz = NEAR; }
+    const k1 = F / az, k2 = F / bz;
+    return [CX + ax * k1, CY - ay * k1, CX + bx * k2, CY - by * k2];
+  }
+
+  function drawPlate(p) {
+    const A = p.alpha; if (A < .01) return;
+    const x0 = p.x0, x1 = p.x0 + p.w, z0 = p.z0, z1 = p.z0 + p.d, y1 = p.y + p.th, y0 = p.y;
+    const top = projPoly([[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]]);
+    const hot = st.zone === p.id || (st.hover === p) || (st.sel === p);
+    ctx.globalAlpha = A;
+    // sides
+    const sides = [
+      [[0, 0, 1], px > x0 - 1e9 && pz > z1, [[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]]],
+      [[0, 0, -1], pz < z0, [[x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0]]],
+      [[1, 0, 0], px > x1, [[x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1]]],
+      [[-1, 0, 0], px < x0, [[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]]],
+    ];
+    for (const s of sides) {
+      if (!s[1]) continue; const q = projPoly(s[2]); if (!q) continue;
+      pathPoly(q); ctx.fillStyle = faceColor(mix(BG, p.color, .55), s[0]); ctx.fill();
+    }
+    if (top) {
+      pathPoly(top);
+      ctx.fillStyle = css(mix(BG, p.color, hot ? .2 : .13)); ctx.fill();
+      ctx.strokeStyle = css(mix(p.color, WHITE, .2), hot ? .95 : .55); ctx.lineWidth = hot ? 2 : 1.3; ctx.stroke();
+      p._hit = top;
+      // corner accents
+      ctx.strokeStyle = css(mix(p.color, WHITE, .35), hot ? 1 : .8); ctx.lineWidth = 2.4;
+      const c = Math.min(1.6, p.w * .12);
+      const corners = [[x0, z0, 1, 1], [x1, z0, -1, 1], [x1, z1, -1, -1], [x0, z1, 1, -1]];
+      for (const k of corners) {
+        const pa = projPoly([[k[0] + k[2] * c, y1 + .01, k[1]], [k[0], y1 + .01, k[1]], [k[0], y1 + .01, k[1] + k[3] * c]]);
+        if (pa && pa.length === 3) { ctx.beginPath(); ctx.moveTo(pa[0][0], pa[0][1]); ctx.lineTo(pa[1][0], pa[1][1]); ctx.lineTo(pa[2][0], pa[2][1]); ctx.stroke(); }
+      }
+      // cell dots
+      if (p.cell && !p.def.noDots) {
+        ctx.fillStyle = css(mix(p.color, WHITE, .3), .22);
+        for (let r = 0; r < p.rows; r++) for (let c2 = 0; c2 < p.cols; c2++) {
+          const q = project(p.x0 + p.pad + (c2 + .5) * p.cell, y1 + .01, p.z0 + p.pad + (r + .5) * p.cell); if (!q) continue;
+          ctx.fillRect(q[0] - 1, q[1] - 1, 2, 2);
+        }
+      }
+      // title on the ground
+      if (!p.def.noTitle) {
+        const zz = z1 - p.titleH * .62, zt = z1 - p.titleH * .2;
+        const fit = (p.w - 1.4) / (p.name.length * .62 * .9), big = Math.min(p.def.titleSize || 1, fit);
+        const tfit = Math.min(1.2, (p.w - 1.2) / (Math.max(1, p.tag.length) * .5 * .5));
+        drawFlatText(p.name.toUpperCase(), p.x0 + p.w / 2, y1 + .02, zz, .9 * big, `700 #px ${FONT}`, css(mix(p.color, WHITE, .55)), .95, 'center');
+        if (p.tag) drawFlatText(p.tag, p.x0 + p.w / 2, y1 + .02, zt, .5 * Math.min(big, tfit), `500 #px ${FONT}`, css(mix(p.color, WHITE, .7)), .6, 'center');
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawShadowAndGlow(b) {
+    const A = b.alpha; if (A < .02) return;
+    const y = b.plate.y + b.plate.th + .012, h = b.h * b.grow;
+    const sx = h * .34 + .12, sz = h * .22 + .08;
+    const x0 = b.x - b.w / 2, x1 = b.x + b.w / 2, z0 = b.z - b.d / 2, z1 = b.z + b.d / 2;
+    const q = projPoly([[x0 + sx, y, z0 + sz], [x1 + sx, y, z0 + sz], [x1 + sx, y, z1 + sz], [x0 + sx, y, z1 + sz]]);
+    if (q) { pathPoly(q); ctx.globalAlpha = A * .38; ctx.fillStyle = '#02040a'; ctx.fill(); }
+    const hot = st.sel === b || st.hover === b || (st.flow && st.flow.nodes.has(b.id)) || (st.search && st.search.has(b.id));
+    if (hot && !b.ghost) {
+      const g = .3 + (st.sel === b ? .1 * Math.sin(st.time * 4) : 0);
+      const q2 = projPoly([[x0 - g, y + .01, z0 - g], [x1 + g, y + .01, z0 - g], [x1 + g, y + .01, z1 + g], [x0 - g, y + .01, z1 + g]]);
+      if (q2) { pathPoly(q2); ctx.globalAlpha = A * (st.sel === b ? .6 : .38); ctx.fillStyle = css(b.color); ctx.fill(); }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawBox(b) {
+    const A = b.alpha; if (A < .02) return;
+    const g = b.grow, h = Math.max(.02, b.h * g), y0 = b.y0, y1 = y0 + h;
+    const x0 = b.x - b.w / 2, x1 = b.x + b.w / 2, z0 = b.z - b.d / 2, z1 = b.z + b.d / 2;
+    const hot = st.sel === b || st.hover === b;
+    const dim = st.catOn[b.cat] === false;
+    ctx.globalAlpha = A;
+    const faces = [
+      [[0, 0, 1], pz > z1, [[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]]],
+      [[0, 0, -1], pz < z0, [[x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0]]],
+      [[1, 0, 0], px > x1, [[x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1]]],
+      [[-1, 0, 0], px < x0, [[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]]],
+      [[0, 1, 0], true, [[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]]],
+    ];
+    const edgeCol = css(mix(b.color, WHITE, hot ? .75 : .4), hot ? 1 : .75);
+    const polys = [];
+    let topQ = null;
+    for (const f of faces) {
+      if (!f[1]) continue;
+      const q = projPoly(f[2]); if (!q) continue;
+      polys.push(q);
+      pathPoly(q);
+      ctx.fillStyle = faceColor(hot ? mix(b.color, WHITE, .12) : b.color, f[0]);
+      ctx.fill();
+      if (b.ghost) ctx.setLineDash([4, 3]);
+      ctx.strokeStyle = edgeCol; ctx.lineWidth = hot ? 1.8 : 1; ctx.stroke();
+      if (b.ghost) ctx.setLineDash([]);
+      if (f[0][1] === 1) topQ = q;
+    }
+    b._hit = polys;
+    // top-face emblem
+    if (topQ && b.icon) {
+      const gx = groundXform(b.x, y1 + .01, b.z);
+      if (gx) drawIcon(b.icon, gx, Math.min(b.w, b.d) * .78, '#ffffff', hot ? 1 : .88);
+    }
+    // "has inside" marker: tiny pips on the front-top edge
+    if (b.hasKids && topQ) {
+      const q = project(b.x + b.w * .34, y1 + .02, b.z + b.d * .34);
+      if (q) { ctx.fillStyle = '#fff'; ctx.globalAlpha = A * .95; ctx.beginPath(); ctx.arc(q[0], q[1], 2.4, 0, TAU); ctx.fill(); }
+    }
+    ctx.globalAlpha = 1;
+    // label candidate
+    const top = project(b.x, y1 + .14, b.z);
+    if (top) {
+      const wpx = (b.w * F) / top[2];
+      const base = project(b.x, b.y0, b.z);
+      st._labels.push({ b, x: top[0], y: top[1], by: base ? base[1] : top[1], wpx, d: top[2], prio: (hot ? 100 : 0) + (b.prio || 1) * 10 - top[2] * .01 + (st.flow && st.flow.nodes.has(b.id) ? 50 : 0) + (st.search && st.search.has(b.id) ? 40 : 0) });
+    }
+  }
+
+  function drawEdgeSeg(it) {
+    const e = it.e; ctx.globalAlpha = it.a; ctx.strokeStyle = it.c; ctx.lineWidth = it.w;
+    ctx.beginPath(); ctx.moveTo(it.x0, it.y0); ctx.lineTo(it.x1, it.y1); ctx.stroke();
+  }
+
+  function collectEdge(e, now, dt) {
+    const A = e.alpha; if (A < .02 || !st.showEdges) return;
+    edgeGeom(e);
+    const k = edgeKinds[e.k] || { color: '#9fb4d8' };
+    const sel = st.sel === e, hot = sel || st.hover === e || (st.sel && st.sel.kind === 'box' && (e.a === st.sel || e.b === st.sel));
+    const col = hot ? css(mix(hex2rgb(k.color), WHITE, .35)) : k.color;
+    // projected sample count by length on screen
+    const pa = project(e.p0[0], e.p0[1], e.p0[2]), pb = project(e.p2[0], e.p2[1], e.p2[2]);
+    const N = pa && pb ? clamp(Math.round(Math.hypot(pa[0] - pb[0], pa[1] - pb[1]) / 18) + 6, 8, 26) : 14;
+    const pts = [], tmp = [0, 0, 0]; let ok = true;
+    for (let i = 0; i <= N; i++) { bez(e, i / N, tmp); const q = project(tmp[0], tmp[1], tmp[2]); if (!q) { pts.push(null); } else pts.push(q); }
+    e.pts = pts;
+    const w = hot ? 2.8 : 1.35, dash = k.dash;
+    for (let i = 0; i < N; i++) {
+      const a = pts[i], b = pts[i + 1]; if (!a || !b) continue;
+      if (dash && ((i >> 1) & 1)) continue;
+      items.push({ d: (a[2] + b[2]) / 2 - .35, t: 1, e, x0: a[0], y0: a[1], x1: b[0], y1: b[1], a: A * (hot ? 1 : .9), c: col, w });
+    }
+    // arrow head
+    const last = pts[N], prev = pts[N - 1];
+    if (last && prev) items.push({ d: last[2] - .5, t: 3, x: last[0], y: last[1], dx: last[0] - prev[0], dy: last[1] - prev[1], a: A * (hot ? 1 : .85), c: col, s: hot ? 6.5 : 5 });
+    if (k.both && pts[0] && pts[1]) items.push({ d: pts[0][2] - .5, t: 3, x: pts[0][0], y: pts[0][1], dx: pts[0][0] - pts[1][0], dy: pts[0][1] - pts[1][1], a: A * .85, c: col, s: 5 });
+    // particles
+    if (st.particles && !(st.flow) && (A > .3)) {
+      const cnt = e.len > 14 ? 2 : 1, sp = (k.speed || 3) / Math.max(4, e.len + 4);
+      for (let i = 0; i < cnt; i++) {
+        let t = (st.time * sp + e.phase + i / cnt) % 1; if (k.both && i % 2) t = 1 - t;
+        bez(e, t, tmp); const q = project(tmp[0], tmp[1], tmp[2]); if (!q) continue;
+        items.push({ d: q[2] - .6, t: 2, x: q[0], y: q[1], r: hot ? 3.2 : 1.9, a: A, c: col });
+      }
+    }
+  }
+
+  function collectFlow(now) {
+    const f = st.flow; if (!f) return;
+    const tmp = [0, 0, 0];
+    f.steps.forEach((s, i) => {
+      const e = s.edge; if (!e) return;
+      edgeGeom(e);
+      const active = f.active === i || f.active < 0;
+      const k = edgeKinds[s.kind || e.k] || { color: '#5eead4' };
+      const col = css(mix(hex2rgb(k.color), WHITE, active ? .45 : .1));
+      const pa = project(e.p0[0], e.p0[1], e.p0[2]), pb = project(e.p2[0], e.p2[1], e.p2[2]);
+      const N = pa && pb ? clamp(Math.round(Math.hypot(pa[0] - pb[0], pa[1] - pb[1]) / 16) + 8, 10, 30) : 16;
+      const pts = [];
+      for (let j = 0; j <= N; j++) { bez(e, j / N, tmp); pts.push(project(tmp[0], tmp[1], tmp[2])); }
+      e.pts = pts;
+      for (let j = 0; j < N; j++) {
+        const a = pts[j], b = pts[j + 1]; if (!a || !b) continue;
+        items.push({ d: (a[2] + b[2]) / 2 - .5, t: 1, e, x0: a[0], y0: a[1], x1: b[0], y1: b[1], a: active ? 1 : .35, c: col, w: active ? 3.2 : 2 });
+      }
+      const last = pts[N], prev = pts[N - 1];
+      if (last && prev) items.push({ d: last[2] - .6, t: 3, x: last[0], y: last[1], dx: last[0] - prev[0], dy: last[1] - prev[1], a: active ? 1 : .45, c: col, s: 7 });
+      // travelling pulse(s)
+      if (active) {
+        const t = ((st.time * .55 + i * .13) % 1);
+        for (let q = 0; q < 3; q++) {
+          const tt = (t + q / 3) % 1; bez(e, tt, tmp); const pr = project(tmp[0], tmp[1], tmp[2]); if (!pr) continue;
+          items.push({ d: pr[2] - .7, t: 2, x: pr[0], y: pr[1], r: 4, a: 1, c: '#ffffff' });
+        }
+      }
+    });
+  }
+
+  function drawArrow(it) {
+    const l = Math.hypot(it.dx, it.dy) || 1, ux_ = it.dx / l, uy_ = it.dy / l, s = it.s;
+    ctx.globalAlpha = it.a; ctx.fillStyle = it.c;
+    ctx.beginPath(); ctx.moveTo(it.x + ux_ * s * .5, it.y + uy_ * s * .5);
+    ctx.lineTo(it.x - ux_ * s - uy_ * s * .6, it.y - uy_ * s + ux_ * s * .6);
+    ctx.lineTo(it.x - ux_ * s + uy_ * s * .6, it.y - uy_ * s - ux_ * s * .6);
+    ctx.closePath(); ctx.fill();
+  }
+  function drawDot(it) {
+    ctx.globalAlpha = it.a * .35; ctx.fillStyle = it.c; ctx.beginPath(); ctx.arc(it.x, it.y, it.r * 2.2, 0, TAU); ctx.fill();
+    ctx.globalAlpha = it.a; ctx.beginPath(); ctx.arc(it.x, it.y, it.r, 0, TAU); ctx.fill();
+  }
+
+  function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+
+  function drawLabels() {
+    hit.labels.length = 0;
+    const L_ = st._labels.sort((a, b) => b.prio - a.prio), placed = [];
+    const showAll = st.labels;
+    for (const l of L_) {
+      const b = l.b, A = b.alpha; if (A < .25) continue;
+      const hot = st.sel === b || st.hover === b || (st.flow && st.flow.nodes.has(b.id)) || (st.search && st.search.has(b.id));
+      if (!showAll && !hot) continue;
+      const big = l.wpx > 52 || hot;
+      const f1 = `600 ${big ? 12 : 11}px ${FONT}`, f2 = `400 10.5px ${FONT}`;
+      const name = b.name, sub = big && b.def.tag ? b.def.tag : '';
+      const w1 = tw(name, f1), w2 = sub ? tw(sub, f2) : 0;
+      const pc = provCfg[b.prov], prov = pc && pc.badge ? 1 : 0, pw = prov ? 17 : 0;
+      const w = Math.max(w1 + pw, w2) + 14, h = sub ? 34 : 21;
+      let x = l.x - w / 2, y = l.y - h - 5;
+      let rect = [x - 2, y - 2, w + 4, h + 4];
+      if (!hot) {
+        const clashes = r0 => { for (const r of placed) if (r0[0] < r[0] + r[2] && r0[0] + r0[2] > r[0] && r0[1] < r[1] + r[3] && r0[1] + r0[3] > r[1]) return true; return false; };
+        if (clashes(rect)) {
+          // fallback: tuck the pill under the block
+          const y2 = l.by + 7, r2 = [x - 2, y2 - 2, w + 4, h + 4];
+          if (l.wpx > 30 && !clashes(r2)) { y = y2; rect = r2; } else continue;
+        }
+        if (l.wpx < 15) continue;
+      }
+      placed.push(rect);
+      ctx.globalAlpha = A * (b.ghost ? .8 : 1);
+      roundRect(x, y, w, h, 7);
+      ctx.fillStyle = hot ? 'rgba(10,16,32,.96)' : 'rgba(8,13,26,.82)'; ctx.fill();
+      ctx.strokeStyle = css(mix(b.color, WHITE, .2), hot ? 1 : .55); ctx.lineWidth = hot ? 1.5 : 1; ctx.stroke();
+      ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+      let tx = x + 7;
+      if (prov) {
+        // provider badge: a coloured disc with the provider's short mark
+        const bx = tx + 5, by = y + (sub ? 11 : h / 2);
+        ctx.fillStyle = pc.color; ctx.beginPath(); ctx.arc(bx, by, 5, 0, TAU); ctx.fill();
+        ctx.fillStyle = pc.text || '#0b1222'; ctx.font = `800 ${String(pc.badge).length > 1 ? 6 : 7.5}px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText(String(pc.badge), bx, by + .5); ctx.textAlign = 'left';
+        tx += pw;
+      }
+      ctx.fillStyle = '#eaf0fc'; ctx.font = f1; ctx.fillText(name, tx, y + (sub ? 11 : h / 2) + .5);
+      if (sub) { ctx.fillStyle = '#93a5c6'; ctx.font = f2; ctx.fillText(sub, x + 7, y + 25); }
+      // flow step badges
+      if (st.flow && st.flow.nodes.has(b.id)) {
+        const nums = st.flow.nums.get(b.id) || [];
+        const label = nums.slice(0, 4).join(' · ');
+        const bw = tw(label, `700 11px ${FONT}`) + 12;
+        ctx.globalAlpha = 1; roundRect(x + w / 2 - bw / 2, y - 21, bw, 18, 9); ctx.fillStyle = '#5eead4'; ctx.fill();
+        ctx.fillStyle = '#03211c'; ctx.font = `700 11px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText(label, x + w / 2, y - 11.5);
+      }
+      hit.labels.push({ b, rect: [x, y, w, h] });
+    }
+    ctx.globalAlpha = 1;
+    // edge labels for selected / hovered edge or selected node's edges (collision-checked)
+    const showE = [];
+    for (const e of scene.edges) {
+      if (e.alpha < .3 || !e.label || !e.pts) continue;
+      const forced = st.sel === e || st.hover === e;
+      const hot = forced || (st.sel && st.sel.kind === 'box' && (e.a === st.sel || e.b === st.sel));
+      if (hot) showE.push([e, forced]);
+    }
+    showE.sort((a, b) => (b[1] - a[1]));
+    let shown = 0;
+    for (const [e, forced] of showE) {
+      const mid = e.pts[Math.floor(e.pts.length * .5)]; if (!mid) continue;
+      const f = `500 11px ${FONT}`, w = tw(e.label, f) + 14, h = 20, x = mid[0] - w / 2, y = mid[1] - h - 4;
+      const rect = [x - 2, y - 2, w + 4, h + 4];
+      if (!forced) {
+        if (shown >= 10) continue;
+        let clash = false;
+        for (const r of placed) if (rect[0] < r[0] + r[2] && rect[0] + rect[2] > r[0] && rect[1] < r[1] + r[3] && rect[1] + rect[3] > r[1]) { clash = true; break; }
+        if (clash) continue;
+      }
+      placed.push(rect); shown++;
+      ctx.globalAlpha = Math.min(1, e.alpha);
+      roundRect(x, y, w, h, 6); ctx.fillStyle = 'rgba(6,10,20,.92)'; ctx.fill(); ctx.strokeStyle = (edgeKinds[e.k] || {}).color || '#9fb4d8'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = '#eaf0fc'; ctx.font = f; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(e.label, mid[0], y + h / 2 + .5);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /* ---------------- frame ---------------- */
+  let last = performance.now(), frameCount = 0;
+  function frame(nowMs) {
+    requestAnimationFrame(frame);
+    if (!scene) return;
+    const dt = Math.min(.05, (nowMs - last) / 1000); last = nowMs; st.time += dt; frameCount++;
+    stepTween(nowMs);
+    if (st.rotate && !tween && !drag) cam.yaw += dt * .12;
+    const now = nowMs - scene.t0;
+    // animate states
+    const kA = 1 - Math.exp(-dt * 9), kG = 1 - Math.exp(-dt * 5);
+    for (const p of scene.plates) p.alpha += (plateTargetAlpha(p, now) - p.alpha) * kA;
+    for (const b of scene.boxes) { b.alpha += (boxTargetAlpha(b, now) - b.alpha) * kA; const tg = now >= b.appear && st.transition !== 'out' ? 1 : (st.transition === 'out' && b === st.originBox ? 1 : 0); b.grow += (tg - b.grow) * kG; }
+    for (const e of scene.edges) e.alpha += (edgeTargetAlpha(e, now) - e.alpha) * kA;
+
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    updateCamera();
+    items = []; st._labels = [];
+    drawGrid();
+    // plates far → near
+    const pl = scene.plates.map(p => { cam3(p.x, p.y, p.z); return [p, _z]; }).sort((a, b) => b[1] - a[1]);
+    for (const [p] of pl) drawPlate(p);
+    // shadows/glows
+    for (const b of scene.boxes) drawShadowAndGlow(b);
+    // collect items
+    for (const b of scene.boxes) { cam3(b.x, b.y0 + b.h * .5, b.z); items.push({ d: _z, t: 0, b }); }
+    for (const e of scene.edges) collectEdge(e, now, dt);
+    collectFlow(now);
+    items.sort((a, b) => b.d - a.d);
+    for (const it of items) {
+      switch (it.t) {
+        case 0: drawBox(it.b); break;
+        case 1: drawEdgeSeg(it); break;
+        case 2: drawDot(it); break;
+        case 3: drawArrow(it); break;
+      }
+    }
+    ctx.globalAlpha = 1;
+    // hit lists (draw order)
+    hit.boxes = []; for (const it of items) if (it.t === 0 && it.b._hit && it.b.alpha > .3) hit.boxes.push(it.b);
+    hit.plates = pl.map(x => x[0]).reverse();
+    drawLabels();
+  }
+
+  /* ---------------- picking ---------------- */
+  function pick(x, y) {
+    for (const l of hit.labels) { const r = l.rect; if (x >= r[0] && x <= r[0] + r[2] && y >= r[1] && y <= r[1] + r[3]) return l.b; }
+    // edges (thin) first, ignoring the ends so they don't steal clicks on boxes
+    let best = null, bd = 7;
+    for (const e of scene.edges) {
+      if (e.alpha < .3 || !e.pts) continue;
+      const n = e.pts.length - 1;
+      for (let i = Math.ceil(n * .14); i < Math.floor(n * .86); i++) {
+        const a = e.pts[i], b = e.pts[i + 1]; if (!a || !b) continue;
+        const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1;
+        const t = clamp(((x - a[0]) * dx + (y - a[1]) * dy) / l2, 0, 1), d = Math.hypot(x - (a[0] + dx * t), y - (a[1] + dy * t));
+        if (d < bd) { bd = d; best = e; }
+      }
+    }
+    for (let i = hit.boxes.length - 1; i >= 0; i--) {
+      const b = hit.boxes[i]; if (b.alpha < .3) continue;
+      if (st.catOn[b.cat] === false && !b.ghost) continue;
+      for (const q of b._hit) if (inPoly(q, x, y)) return b;
+    }
+    if (best) return best;
+    for (const p of hit.plates) { if (p.alpha > .3 && p._hit && inPoly(p._hit, x, y)) return p; }
+    return null;
+  }
+
+  /* ---------------- input ---------------- */
+  let drag = null, ptrs = new Map(), lastClick = { t: 0, o: null }, moved = 0;
+  function rel(e) { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+  function stopAuto() { tween = null; st.userMoved = true; st.idleSince = performance.now(); }
+  cv.addEventListener('pointerdown', e => {
+    cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, rel(e)); moved = 0;
+    if (ptrs.size === 1) { const [x, y] = rel(e); drag = { x, y, mode: (e.button === 2 || e.shiftKey || e.button === 1) ? 'pan' : 'orbit', x0: x, y0: y }; }
+    else if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; drag = { mode: 'pinch', d: Math.hypot(a[0] - b[0], a[1] - b[1]), cx: (a[0] + b[0]) / 2, cy: (a[1] + b[1]) / 2 }; }
+    stopAuto();
+  });
+  cv.addEventListener('pointermove', e => {
+    const [x, y] = rel(e);
+    if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, [x, y]);
+    if (drag && drag.mode === 'pinch' && ptrs.size === 2) {
+      const [a, b] = [...ptrs.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]), cx = (a[0] + b[0]) / 2, cy = (a[1] + b[1]) / 2;
+      cam.dist = clamp(cam.dist * drag.d / d, 4, 220); pan(cx - drag.cx, cy - drag.cy); drag.d = d; drag.cx = cx; drag.cy = cy; moved = 99; return;
+    }
+    if (drag && (drag.mode === 'orbit' || drag.mode === 'pan')) {
+      const dx = x - drag.x, dy = y - drag.y; moved += Math.abs(dx) + Math.abs(dy);
+      if (moved > 4) { cv.classList.add('dragging'); st.hover = null; cb.hover(null, x, y); }
+      if (drag.mode === 'orbit') { cam.yaw -= dx * .0065; cam.pitch = clamp(cam.pitch + dy * .005, .12, 1.5); }
+      else pan(dx, dy);
+      drag.x = x; drag.y = y; return;
+    }
+    // hover
+    if (!scene) return;
+    const o = pick(x, y); const prev = st.hover;
+    if (o !== prev) { st.hover = o; cv.classList.toggle('pointing', !!o && o.kind !== 'plate' || !!o); cb.hover(o, x, y); }
+    else if (o) cb.hover(o, x, y);
+  });
+  function pan(dx, dy) {
+    const s = cam.dist * Math.tan(FOV / 2) * 2 / H;
+    const gl = Math.hypot(fx, fz) || 1, gx = fx / gl, gz = fz / gl;
+    cam.tx += (-rx * dx + gx * dy / Math.max(.35, Math.sin(cam.pitch))) * s;
+    cam.tz += (-rz * dx + gz * dy / Math.max(.35, Math.sin(cam.pitch))) * s;
+    const b = scene.bounds; cam.tx = clamp(cam.tx, b.x0 - 12, b.x1 + 12); cam.tz = clamp(cam.tz, b.z0 - 12, b.z1 + 12);
+  }
+  function endPtr(e) {
+    ptrs.delete(e.pointerId);
+    if (ptrs.size === 0 && drag) {
+      const was = drag; drag = null; cv.classList.remove('dragging');
+      if (moved <= 5 && was.mode !== 'pinch' && e.type === 'pointerup') click(...rel(e), e);
+    } else if (ptrs.size === 1) { drag = null; const [x, y] = [...ptrs.values()][0]; drag = { x, y, mode: 'orbit' }; moved = 99; }
+  }
+  cv.addEventListener('pointerup', endPtr); cv.addEventListener('pointercancel', endPtr);
+  cv.addEventListener('pointerleave', () => { if (!drag) { st.hover = null; cb.hover(null); } });
+  cv.addEventListener('contextmenu', e => e.preventDefault());
+  cv.addEventListener('wheel', e => { e.preventDefault(); stopAuto(); const k = Math.exp(clamp(e.deltaY, -120, 120) * .0013); cam.dist = clamp(cam.dist * k, 4, 220); }, { passive: false });
+  function click(x, y) {
+    const o = pick(x, y), t = performance.now();
+    const dbl = o && lastClick.o === o && t - lastClick.t < 380;
+    lastClick = { t, o };
+    if (!o) { cb.empty(); return; }
+    if (dbl) cb.enter(o); else cb.select(o);
+  }
+
+  /* ---------------- public api ---------------- */
+  function resize() {
+    const r = cv.getBoundingClientRect(); W = Math.max(200, r.width); H = Math.max(200, r.height); DPR = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  }
+  new ResizeObserver(resize).observe(cv); resize();
+  requestAnimationFrame(frame);
+
+  return {
+    st, cam, cb,
+    setConfig(cats, kinds, providers) { catColor = cats; edgeKinds = kinds; provCfg = providers || {}; },
+    targetPose() { const q = tween ? tween.to : cam; return { tx: q.tx, ty: q.ty, tz: q.tz, yaw: q.yaw, pitch: q.pitch, dist: q.dist }; },
+    dbg() { return { inset, insetNow, W, H, cam: { ...cam }, tween: !!tween }; },
+    setInsets(l, r, t, b) { inset = { l, r, t, b: b || 0 }; },
+    load(def, info, opts) {
+      opts = opts || {};
+      scene = buildScene(def, info); st.userMoved = false; st.sel = null; st.hover = null; st.zone = null; st.flow = null; st.search = null; st.transition = null; st.originBox = null;
+      const home = homePose(scene); scene.home = home;
+      if (opts.from) { Object.assign(cam, opts.from); }
+      if (opts.fly !== false) flyTo(opts.to || home, opts.ms || 1100, opts.ease || easeOut);
+      else Object.assign(cam, home);
+      return scene;
+    },
+    scene() { return scene; },
+    home() { if (scene) { scene.home = homePose(scene); st.zone = null; flyTo(scene.home, 900, easeIO); } },
+    flyMid(a, b) {
+      const dx = a.x - b.x, dz = a.z - b.z, span = Math.hypot(dx, dz);
+      flyTo({ tx: (a.x + b.x) / 2, ty: 0, tz: (a.z + b.z) / 2, yaw: cam.yaw, pitch: Math.max(cam.pitch, .66), dist: clamp(span * 1.05 + 13, 15, Math.max(scene.home.dist, 30)) }, 900, easeIO);
+    },
+    setFlow(f) { st.flow = f; },
+    flyPose(p, ms) { flyTo(p, ms || 800, easeIO); },
+    focusPlate(id) { const p = scene.plateById.get(id); if (!p) return; st.zone = id; flyTo(plateFocusPose(p), 900, easeIO); },
+    focusBox(b) { flyTo(boxFocusPose(b), 800, easeIO); },
+    focusBoxById(id) { const b = scene.byId.get(id); if (b) flyTo(boxFocusPose(b), 800, easeIO); },
+    // dive into a box: zoom at it, fade the rest, then call back so the caller can swap the scene
+    diveOut(box, done) {
+      st.transition = 'out'; st.originBox = box;
+      flyTo({ tx: box.x, ty: box.y0 + box.h * .5, tz: box.z, yaw: cam.yaw, pitch: Math.max(cam.pitch, .9), dist: Math.max(3.2, box.w * 2.2) }, 650, easeIn, done);
+    },
+    fadeOut(done) { st.transition = 'out'; st.originBox = null; flyTo({ tx: cam.tx, ty: cam.ty, tz: cam.tz, yaw: cam.yaw, pitch: cam.pitch, dist: cam.dist * 1.5 }, 420, easeIn, done); },
+    pose() { return { tx: cam.tx, ty: cam.ty, tz: cam.tz, yaw: cam.yaw, pitch: cam.pitch, dist: cam.dist }; },
+    easeOut, easeIO,
+    boxPose(b) { return { tx: b.x, ty: b.y0 + b.h * .5, tz: b.z, yaw: cam.yaw - .5, pitch: 1.15, dist: Math.max(3.2, b.w * 2.2) }; },
+    resize,
+  };
+})();
+/* ======================= BEGIN DATA DSL (engine-owned — do not edit) =======================
+   Helpers the ARCHITECTURE DATA region uses to declare the map. Also holds the validator
+   that runs in the browser console at load time and in check.js from the command line.
+   ============================================================================================= */
+const ZONES = [], NODES = [], EDGES = [], FLOWS = [], INSIDE = {};
+const MINOR = { minor: true };                 // pass as the last argument of e(...) for secondary links
+const CELL = 2.2, PAD = .9, TITLE_H = 1.9;      // plate geometry (world units)
+const ICONS = ['person', 'users', 'window', 'cog', 'server', 'db', 'cloud', 'shield', 'chat', 'spark', 'mail', 'pin', 'chart', 'flow', 'term', 'key', 'cube', 'clock', 'bell', 'search', 'doc', 'bolt', 'globe', 'lock', 'phone', 'mic', 'layers', 'branch', 'tag', 'eye', 'wrench', 'brain'];
+const PLATE_KEYS = ['cell', 'pad', 'noTitle', 'noDots', 'titleSize', 'big'];
+function plateSize(z) { const cell = z.cell || CELL, pad = z.pad != null ? z.pad : PAD; return { w: z.cols * cell + pad * 2, d: z.rows * cell + pad * 2 + (z.noTitle ? 0 : TITLE_H) }; }
+function pickPlate(o) { const r = {}; if (o) for (const k of PLATE_KEYS) if (o[k] !== undefined) r[k] = o[k]; return r; }
+function catColor(cat) { const c = typeof CATS !== 'undefined' && CATS[cat]; return c ? c.color : '#9aa7bd'; }
+
+/** District (plate) at an explicit position. Prefer layoutRows() which computes positions for you. */
+function zone(id, name, tag, cat, x, z, cols, rows, desc, extra) {
+  const o = Object.assign({ id, name, tag: tag || '', cat, color: catColor(cat), x, z, cols, rows, desc }, pickPlate(extra));
+  ZONES.push(o); return o;
+}
+/** Lay plates out in rows, back → front, each row centred on x = 0, the whole block centred on z = 0.
+ *  rows: [[{ id, name, tag, cat, cols, rows, desc }, ...], ...]   opts: { gapX, gapZ } */
+function layoutRows(rows, opts, list, prefix) {
+  const gx = opts && opts.gapX != null ? opts.gapX : 3, gz = opts && opts.gapZ != null ? opts.gapZ : 3.2, out = list || ZONES, pre = prefix || '';
+  const sized = rows.map(r => r.map(z => Object.assign({}, z, plateSize(z))));
+  const depths = sized.map(r => Math.max(...r.map(z => z.d)));
+  let zc = -(depths.reduce((a, b) => a + b, 0) + gz * (rows.length - 1)) / 2;
+  sized.forEach((r, i) => {
+    const zmid = zc + depths[i] / 2; let x = -(r.reduce((a, z) => a + z.w, 0) + gx * (r.length - 1)) / 2;
+    for (const z of r) {
+      out.push(Object.assign({ id: pre + z.id, name: z.name, tag: z.tag || '', cat: z.cat, color: catColor(z.cat), x: x + z.w / 2, z: zmid, cols: z.cols, rows: z.rows, desc: z.desc }, pickPlate(z)));
+      x += z.w + gx;
+    }
+    zc += depths[i] + gz;
+  });
+}
+function autoCell(zones, nodes, zoneId, span) {
+  const z = zones.find(q => q.id === zoneId); if (!z) return [0, 0];
+  const taken = new Set();
+  for (const n of nodes) if (n.zone === zoneId) { const s = n.span || [1, 1]; for (let i = 0; i < s[0]; i++) for (let j = 0; j < s[1]; j++) taken.add((n.c + i) + ',' + (n.r + j)); }
+  for (let r = 0; r < z.rows; r++) for (let c = 0; c < z.cols; c++) {
+    let ok = c + span[0] <= z.cols && r + span[1] <= z.rows;
+    for (let i = 0; ok && i < span[0]; i++) for (let j = 0; ok && j < span[1]; j++) if (taken.has((c + i) + ',' + (r + j))) ok = false;
+    if (ok) return [c, r];
+  }
+  return [z.cols, z.rows]; // no room: the validator reports it
+}
+/** Overview node.  nd(id, zone, [c, r,] cat, name, tag, icon, h, blurb, opts)
+ *  c/r (grid cell, 0-based) are optional: omit them and the next free cell is used. */
+function nd(id, zone_, ...rest) {
+  let c = null, r = null; if (typeof rest[0] === 'number') { c = rest.shift(); r = rest.shift(); }
+  const [cat, name, tag, icon, h, blurb, o] = rest;
+  const n = Object.assign({ id, zone: zone_, cat, name, tag: tag || '', icon, h: h || 1, blurb: blurb || '', prov: 'own' }, o || {});
+  if (c == null) [n.c, n.r] = autoCell(ZONES, NODES, zone_, n.span || [1, 1]); else { n.c = c; n.r = r; }
+  NODES.push(n); return n;
+}
+/** Overview connection.  e(fromId, toId, kind, label, detail, MINOR?) — direction = who initiates. */
+function e(a, b, kind, label, d, o) { EDGES.push(Object.assign({ a, b, kind, label: label || '', d: d || null }, o || {})); }
+/** Guided flow.  steps: [[fromId, toId, kind, 'what happens'], ...] — ids must be overview nodes. */
+function flow(id, name, blurb, steps) { FLOWS.push({ id, name, blurb, steps }); }
+/** "Inside" view for an overview node that has more structure. Chain .rows()/.z(), .n(), .e(), .x().
+ *  Local ids are written '.name' in edges and become '<viewId>.name'. Overview ids may be used in
+ *  edges too — list them with .x(side, [...]) so they appear as ghost neighbours around the plate. */
+function view(id, title, sub, cat) {
+  const v = { id, title, sub, cat, zones: [], nodes: [], edges: [], ext: [] }; INSIDE[id] = v;
+  const pre = s => (s[0] === '.' ? id + s : s), zid = s => id + '.' + s;
+  const api = {
+    v,
+    z(z, name, tag, x, zz, cols, rows, desc, extra) { v.zones.push(Object.assign({ id: zid(z), name, tag: tag || '', cat, color: catColor(cat), x, z: zz, cols, rows, desc }, pickPlate(extra))); return api; },
+    rows(rows, opts) { layoutRows(rows.map(r => r.map(z => Object.assign({ cat }, z))), opts, v.zones, id + '.'); return api; },
+    n(nid, z, ...rest) {
+      let c = null, r = null; if (typeof rest[0] === 'number') { c = rest.shift(); r = rest.shift(); }
+      const [name, tag, icon, h, blurb, o] = rest;
+      const n = Object.assign({ id: zid(nid), zone: zid(z), cat, name, tag: tag || '', icon, h: h || 1, blurb: blurb || '', prov: 'own' }, o || {});
+      if (c == null) [n.c, n.r] = autoCell(v.zones, v.nodes, n.zone, n.span || [1, 1]); else { n.c = c; n.r = r; }
+      v.nodes.push(n); return api;
+    },
+    e(a, b, kind, label, d, o) { v.edges.push(Object.assign({ a: pre(a), b: pre(b), kind, label: label || '', d: d || null }, o || {})); return api; },
+    x(side, refs) { for (const ref of refs) v.ext.push({ ref, side }); return api; },
+  };
+  return api;
+}
+
+/** Validates a model. Returns { errors: [...], warnings: [...] }. Errors break or mis-draw the map; warnings are quality hints. */
+function validateArchitecture(M) {
+  const errors = [], warnings = [], err = s => errors.push(s), warn = s => warnings.push(s);
+  const { META, PROVIDERS, CATS, KINDS, ZONES, NODES, EDGES, FLOWS, INSIDE } = M;
+  if (!META || !META.title) err('META.title is required');
+  if (!PROVIDERS || !PROVIDERS.own) err("PROVIDERS.own is required (the system's own code)");
+  for (const [k, c] of Object.entries(PROVIDERS || {})) { if (!c.label) err(`PROVIDERS.${k} needs a label`); if (k !== 'own' && (!c.badge || !c.color)) err(`PROVIDERS.${k} needs badge (1–2 chars) and color`); }
+  for (const [k, c] of Object.entries(CATS || {})) { if (!c.label || !c.color || !c.icon) err(`CATS.${k} needs label, color and icon`); if (c.icon && !ICONS.includes(c.icon)) err(`CATS.${k}: unknown icon ${c.icon}`); }
+  for (const [k, c] of Object.entries(KINDS || {})) if (!c.label || !c.color) err(`KINDS.${k} needs label and color`);
+  const ids = new Set(), rootIds = new Set((NODES || []).map(n => n.id));
+  function checkView(name, zones, nodes, edges, extRefs, isRoot) {
+    const zmap = new Map();
+    for (const z of zones) {
+      if (zmap.has(z.id)) err(`${name}: duplicate zone id ${z.id}`); zmap.set(z.id, z);
+      if (!CATS[z.cat]) err(`${name}: zone ${z.id} has unknown cat "${z.cat}"`);
+      if (!(z.cols > 0 && z.rows > 0)) err(`${name}: zone ${z.id} needs cols and rows`);
+      if (typeof z.x !== 'number' || typeof z.z !== 'number' || Number.isNaN(z.x) || Number.isNaN(z.z)) err(`${name}: zone ${z.id} has no position (use layoutRows or pass x, z)`);
+      if ((z.name || '').length > 26) warn(`${name}: zone name "${z.name}" is long; it will shrink to fit`);
+    }
+    const rects = zones.map(z => { const s = plateSize(z); return { id: z.id, x0: z.x - s.w / 2, x1: z.x + s.w / 2, z0: z.z - s.d / 2, z1: z.z + s.d / 2 }; });
+    for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
+      const a = rects[i], b = rects[j];
+      if (a.x0 < b.x1 - .01 && a.x1 > b.x0 + .01 && a.z0 < b.z1 - .01 && a.z1 > b.z0 + .01) err(`${name}: plates ${a.id} and ${b.id} overlap`);
+    }
+    const cells = new Map(), nmap = new Map(), perZone = {};
+    for (const n of nodes) {
+      if (ids.has(n.id)) err(`duplicate node id ${n.id}`); ids.add(n.id); nmap.set(n.id, n);
+      if (!n.name) err(`${name}: node ${n.id} has no name`); else if (n.name.length > 30) warn(`${name}: node name "${n.name}" is long (>30 chars)`);
+      if ((n.tag || '').length > 40) warn(`${name}: tag of ${n.id} is long (>40 chars)`);
+      if (!CATS[n.cat]) err(`${name}: node ${n.id} has unknown cat "${n.cat}"`);
+      if (!PROVIDERS[n.prov]) err(`${name}: node ${n.id} has unknown prov "${n.prov}"`);
+      if (n.icon && !ICONS.includes(n.icon)) err(`${name}: node ${n.id} uses unknown icon "${n.icon}"`);
+      if (!(n.h > 0)) err(`${name}: node ${n.id} needs a positive height h`);
+      const z = zmap.get(n.zone); if (!z) { err(`${name}: node ${n.id} references missing zone "${n.zone}"`); continue; }
+      perZone[z.id] = (perZone[z.id] || 0) + 1;
+      const s = n.span || [1, 1];
+      if (n.c < 0 || n.r < 0 || n.c + s[0] > z.cols || n.r + s[1] > z.rows) { err(`${name}: node ${n.id} does not fit in zone ${z.id} (cell ${n.c},${n.r}, span ${s[0]}x${s[1]}, grid ${z.cols}x${z.rows}) — enlarge the zone's cols/rows or move a node`); continue; }
+      for (let i = 0; i < s[0]; i++) for (let j = 0; j < s[1]; j++) { const k = z.id + ':' + (n.c + i) + ',' + (n.r + j); if (cells.has(k)) err(`${name}: nodes ${cells.get(k)} and ${n.id} share cell ${n.c + i},${n.r + j} in ${z.id}`); cells.set(k, n.id); }
+      if (!n.desc && !n.blurb) warn(`${name}: node ${n.id} has no desc or blurb`);
+      if (isRoot && n.prov === 'own' && !(n.paths && n.paths.length)) warn(`node ${n.id} is built in-house but has no paths — add repo evidence`);
+    }
+    for (const z of zones) if (!perZone[z.id]) warn(`${name}: zone ${z.id} has no nodes`);
+    const deg = {}, pairs = {};
+    for (const ed of edges) {
+      for (const end of [ed.a, ed.b]) if (!(nmap.has(end) || (!isRoot && rootIds.has(end)))) err(`${name}: edge ${ed.a} → ${ed.b}: unknown node "${end}"`);
+      if (ed.a === ed.b) err(`${name}: edge ${ed.a} points at itself`);
+      if (!KINDS[ed.kind]) err(`${name}: edge ${ed.a} → ${ed.b} has unknown kind "${ed.kind}"`);
+      deg[ed.a] = (deg[ed.a] || 0) + 1; deg[ed.b] = (deg[ed.b] || 0) + 1;
+      const pk = [ed.a, ed.b].sort().join(' and '); pairs[pk] = (pairs[pk] || 0) + 1;
+    }
+    for (const n of nodes) if (!deg[n.id]) warn(`${name}: node ${n.id} has no connections`);
+    for (const [pk, c] of Object.entries(pairs)) if (c > 3) warn(`${name}: ${c} edges between ${pk} — merge some or mark them MINOR`);
+    if (!isRoot) {
+      const ext = new Set();
+      for (const x of extRefs) { if (!rootIds.has(x.ref)) err(`${name}: neighbour "${x.ref}" is not an overview node`); if (!['back', 'front', 'left', 'right'].includes(x.side)) err(`${name}: neighbour side "${x.side}" must be back/front/left/right`); ext.add(x.ref); }
+      for (const ed of edges) for (const end of [ed.a, ed.b]) if (!nmap.has(end) && rootIds.has(end) && !ext.has(end)) err(`${name}: edge uses overview node "${end}" but it is not listed in .x(side, [...]) — add it as a neighbour`);
+    }
+    return nodes.length;
+  }
+  const nRoot = checkView('overview', ZONES || [], NODES || [], EDGES || [], [], true);
+  if (nRoot < 20) warn(`overview has only ${nRoot} nodes; a whole-system map usually needs 40–100`);
+  if (nRoot > 110) warn(`overview has ${nRoot} nodes; above ~110 the map gets crowded — move detail into inside views`);
+  if ((EDGES || []).length < nRoot * .8) warn(`overview has few connections (${(EDGES || []).length} for ${nRoot} nodes)`);
+  for (const [id, v] of Object.entries(INSIDE || {})) {
+    if (!rootIds.has(id)) err(`inside view "${id}" does not match an overview node id`);
+    if (!CATS[v.cat]) err(`inside view ${id} has unknown cat "${v.cat}"`);
+    if (!v.nodes.length) err(`inside view ${id} has no nodes`);
+    for (const n of v.nodes) if (!n.id.startsWith(id + '.')) err(`inside view ${id}: node ${n.id} must be prefixed "${id}."`);
+    checkView('inside:' + id, v.zones, v.nodes, v.edges, v.ext, false);
+    if (!v.ext.length) warn(`inside view ${id} lists no neighbours (.x) — the viewer loses context of what it connects to`);
+  }
+  if (!(FLOWS || []).length) warn('no guided flows defined; add 4–8 (the best way to explain a system)');
+  const fids = new Set();
+  for (const f of FLOWS || []) {
+    if (fids.has(f.id)) err(`duplicate flow id ${f.id}`); fids.add(f.id);
+    if (!f.steps || f.steps.length < 2) err(`flow ${f.id} needs at least 2 steps`);
+    (f.steps || []).forEach((s, i) => {
+      for (const end of [s[0], s[1]]) if (!rootIds.has(end)) err(`flow ${f.id} step ${i + 1}: "${end}" is not an overview node`);
+      if (!KINDS[s[2]]) err(`flow ${f.id} step ${i + 1}: unknown kind "${s[2]}"`);
+      if (!s[3]) err(`flow ${f.id} step ${i + 1}: missing text`);
+    });
+    if (f.steps && f.steps.length > 10) warn(`flow ${f.id} has ${f.steps.length} steps; 4–9 reads best`);
+  }
+  for (const s of (META && META.start) || []) {
+    if (s.act === 'pick' && !rootIds.has(s.id)) err(`META.start: unknown node ${s.id}`);
+    if (s.act === 'flow' && !fids.has(s.id)) err(`META.start: unknown flow ${s.id}`);
+    if (s.act === 'zone' && !(ZONES || []).some(z => z.id === s.id)) err(`META.start: unknown zone ${s.id}`);
+    if (s.act === 'prov' && !(PROVIDERS || {})[s.id]) err(`META.start: unknown provider ${s.id}`);
+    if (!['pick', 'flow', 'zone', 'prov'].includes(s.act)) err(`META.start: unknown act ${s.act}`);
+  }
+  return { errors, warnings };
+}
+/* ======================= END DATA DSL ======================= */
+/* ===================== BEGIN ARCHITECTURE DATA =====================
+   Replace everything between this line and the END ARCHITECTURE DATA line with the data for your
+   system. Keep both marker lines exactly as they are. See INSTRUCTIONS.md next to the template. */
+/* This is a small FICTIONAL example ("Acme Commerce") that shows every feature of the data format.
+   Delete it and describe the real system. Everything you write here must come from the repository
+   you are mapping — see INSTRUCTIONS.md. Strings support **bold** and `code`. */
+
+/* ------------------------------ 1. ABOUT THE SYSTEM ------------------------------ */
+const META = {
+  title: 'Acme Commerce',                       // h2 of the overview panel + document title
+  brand: 'Acme',                                // short name in the top-left corner
+  brandSub: 'System Architecture',
+  tagline: 'Storefront, order processing and fulfilment',
+  intro: [                                      // 1–3 short paragraphs: what the system is for and the main moving parts
+    'Acme sells goods online. Shoppers browse and check out in the **Storefront**; Acme staff manage products and orders in the **Admin console**.',
+    'A Node **Orders API** is the system of record. Long-running work (payment capture, emails, stock sync) goes through a queue to a **Worker**. Everything runs on Kubernetes and ships through GitHub Actions.',
+  ],
+  start: [                                      // 3–5 suggested entry points shown on the overview panel
+    { act: 'pick', id: 'api', title: 'Orders API', sub: 'the hub — open it to see its modules' },
+    { act: 'flow', id: 'checkout', title: 'Watch a checkout', sub: 'guided flow from shopper to confirmation email' },
+    { act: 'prov', id: 'third', title: 'Spotlight third-party services', sub: 'dims everything built in-house' },
+  ],
+  footnote: 'Built from the repository: READMEs, `docs/`, `infra/` and the code itself. Secrets and account identifiers are intentionally left out.',
+};
+
+/* Providers: who runs each block. `own` is required. Add one entry per cloud/vendor family you want to spotlight. */
+const PROVIDERS = {
+  own:   { label: 'Built in-house' },                                  // no badge
+  cloud: { label: 'AWS', badge: 'A', color: '#f59e0b' },               // the main cloud provider (rename!)
+  third: { label: 'Third-party', badge: '3', color: '#fbbf24' },       // SaaS vendors
+};
+
+/* Categories (layers). Keep the ids; rename labels/colours freely; drop ones you don't use; add at most a couple. */
+const CATS = {
+  users:    { label: 'People & customers',        color: '#fbbf24', icon: 'person', blurb: 'Humans and organisations that use or integrate with the system.' },
+  app:      { label: 'Experience (clients)',      color: '#2dd4bf', icon: 'window', blurb: 'Web, mobile and embedded clients users actually see.' },
+  edge:     { label: 'Edge & identity',           color: '#a78bfa', icon: 'shield', blurb: 'DNS, load balancing, access control and sign-in.' },
+  core:     { label: 'Core services',             color: '#60a5fa', icon: 'server', blurb: 'The services built in this repository.' },
+  ai:       { label: 'AI / ML',                   color: '#f472b6', icon: 'spark',  blurb: 'Models, agents, pipelines and their knowledge.' },
+  data:     { label: 'Data, storage & messaging', color: '#fb923c', icon: 'db',     blurb: 'Databases, caches, queues, buckets and secrets.' },
+  platform: { label: 'Cloud platform APIs',       color: '#4ade80', icon: 'globe',  blurb: 'Managed cloud APIs called by the code.' },
+  saas:     { label: 'Third-party services',      color: '#cbd5e1', icon: 'cloud',  blurb: 'External SaaS integrated by API or webhook.' },
+  ops:      { label: 'Delivery, tooling & envs',  color: '#a3e635', icon: 'flow',   blurb: 'Pipelines, operator tools, environments and the repo.' },
+  obs:      { label: 'Observability',             color: '#fb7185', icon: 'search', blurb: 'Traces, logs, metrics, dashboards and alerts.' },
+  legacy:   { label: 'Legacy / retired',          color: '#7c8aa5', icon: 'clock',  blurb: 'Kept for reference; not on the live path.' },
+};
+
+/* Connection kinds. `dash` draws dashed, `speed` sets particle speed, `both` draws arrows at both ends. */
+const KINDS = {
+  http:   { label: 'HTTP / RPC call',              color: '#38bdf8', speed: 3.2 },
+  stream: { label: 'Streaming / realtime',         color: '#f472b6', speed: 4.5 },
+  data:   { label: 'Data read / write',            color: '#fb923c', speed: 2.4 },
+  async:  { label: 'Async event / queue / job',    color: '#facc15', speed: 2.8, dash: true },
+  auth:   { label: 'Identity, tokens & config',    color: '#a78bfa', speed: 2.2, dash: true },
+  api:    { label: 'Cloud / third-party API',      color: '#4ade80', speed: 3.0 },
+  ship:   { label: 'Build, release & deploy',      color: '#a3e635', speed: 2.6, dash: true },
+  obs:    { label: 'Telemetry & alerts',           color: '#fb7185', speed: 2.4, dash: true },
+  use:    { label: 'People using / embedding',     color: '#e2e8f0', speed: 2.0, dash: true },
+};
+
+/* ------------------------------ 2. DISTRICTS (plates) ------------------------------ */
+/* Rows go back → front. Back row = people and the outside world; middle row = the request path, left → right;
+   front row = delivery, tooling, environments, legacy. `cols × rows` is the grid of cells; one node per cell. */
+layoutRows([
+  [
+    { id: 'z_people', name: 'People & customers', tag: 'who uses it', cat: 'users', cols: 3, rows: 1, desc: 'Everyone who touches the system.' },
+    { id: 'z_saas',   name: 'Third-party services', tag: 'payments · email · errors', cat: 'saas', cols: 3, rows: 1, desc: 'External providers reached by API or webhook. All are called from the Orders API unless noted.' },
+  ],
+  [
+    { id: 'z_app',  name: 'Experience', tag: 'browser apps', cat: 'app', cols: 2, rows: 1, desc: 'The two web apps. Both talk only to the Orders API.' },
+    { id: 'z_edge', name: 'Edge & identity', tag: 'CDN · load balancer · sign-in', cat: 'edge', cols: 2, rows: 1, desc: 'How traffic gets in and how users are identified.' },
+    { id: 'z_core', name: 'Core services', tag: 'API · worker', cat: 'core', cols: 3, rows: 1, desc: 'The services built in this repository.' },
+    { id: 'z_data', name: 'Data & messaging', tag: 'storage layer', cat: 'data', cols: 2, rows: 2, desc: 'Everything persistent or in flight.' },
+  ],
+  [
+    { id: 'z_deliv',  name: 'Delivery', tag: 'git → build → deploy', cat: 'ops', cols: 3, rows: 1, desc: 'How a commit becomes a running revision.' },
+    { id: 'z_legacy', name: 'Legacy', tag: 'kept for reference', cat: 'legacy', cols: 1, rows: 1, desc: 'Things that still exist but are not on the live path.' },
+  ],
+], { gapX: 3, gapZ: 3.2 });
+
+/* ------------------------------ 3. SYSTEMS (nodes) ------------------------------ */
+/* nd(id, zone, [col, row,] cat, name, tag, icon, height, blurb, { prov, desc, does, facts, tech, paths, notes, span })
+   - col/row are optional (next free cell is used). Give the hub an explicit cell and span: [2, 1].
+   - height 1.0–3.4 encodes importance. prov defaults to 'own'. */
+nd('shoppers', 'z_people', 'users', 'Shoppers', 'end customers', 'person', 1.2, 'People buying on the storefront.',
+  { desc: 'Anonymous visitors and signed-in customers. They browse, add to cart, pay and receive order emails.', does: ['Browse the catalog', 'Check out with a card', 'Track orders'], paths: ['apps/storefront/'] });
+nd('staff', 'z_people', 'users', 'Acme staff', 'merchandising · support', 'users', 1.2, 'Internal users of the admin console.',
+  { desc: 'Merchandisers manage products and prices; support agents look up and refund orders.', paths: ['apps/admin/'] });
+nd('devs', 'z_people', 'users', 'Engineers', 'build · run', 'term', 1.1, 'The team that develops and operates the system.',
+  { desc: 'Push to GitHub, review CI results, watch dashboards and alerts.', paths: ['docs/'] });
+
+nd('storefront', 'z_app', 'app', 'Storefront', 'Next.js · public', 'window', 1.9, 'Customer-facing shop: catalog, cart, checkout.',
+  { desc: 'Server-rendered React app. Calls the Orders API through the load balancer with the shopper session cookie.', does: ['Catalog and search pages', 'Cart and checkout', 'Order history'], tech: ['Next.js', 'React', 'Stripe Elements'], paths: ['apps/storefront/src/'], facts: [['Route prefix', '`/`'], ['Local port', '3000']] });
+nd('admin', 'z_app', 'app', 'Admin console', 'React · staff only', 'cog', 1.5, 'Back office for products, orders and refunds.',
+  { desc: 'Single-page React app behind SSO. Uses the same Orders API with staff roles.', tech: ['React', 'Vite'], paths: ['apps/admin/src/'] });
+
+nd('lb', 'z_edge', 'edge', 'CDN + load balancer', 'TLS · path routing', 'flow', 1.5, 'Terminates TLS and routes `/api` to the API, everything else to the apps.',
+  { prov: 'cloud', desc: 'CloudFront in front of an application load balancer. First path segment selects the target.', facts: [['Domains', 'shop.example.com · admin.example.com']], paths: ['infra/terraform/edge.tf'] });
+nd('auth', 'z_edge', 'edge', 'Identity provider', 'OIDC · sessions', 'key', 1.3, 'Customer sign-in and staff SSO.',
+  { prov: 'third', desc: 'Hosted identity provider. The API verifies its ID tokens and issues a session cookie.', paths: ['services/api/src/auth/'] });
+
+nd('api', 'z_core', 0, 0, 'core', 'Orders API', 'Node · the hub', 'server', 3.2, 'System of record for products, carts, orders and customers.',
+  { span: [2, 1], desc: ['The one HTTP API behind both apps. Owns the catalog, carts, orders and customers, takes payments through Stripe and enqueues every slow task.', 'Multi-tenant by store id in the URL.'], does: ['Authenticate users and staff', 'Cart pricing and checkout', 'Enqueue payment capture, emails and stock sync', 'Webhooks from Stripe'], tech: ['Node 20', 'Fastify', 'Prisma'], paths: ['services/api/src/', 'services/api/src/routes/'], facts: [['Container', '`api` · 2 replicas'], ['Local port', '8080']] });
+nd('worker', 'z_core', 'core', 'Worker', 'queue consumer', 'cog', 1.6, 'Runs payment capture, emails and stock sync off the request path.',
+  { desc: 'Consumes jobs from the queue with retries and dead-lettering.', tech: ['Node 20', 'BullMQ'], paths: ['services/worker/src/'] });
+
+nd('postgres', 'z_data', 'data', 'PostgreSQL', 'primary database', 'db', 2.0, 'Products, orders, customers.', { prov: 'cloud', desc: 'Managed Postgres. Migrations live with the API.', paths: ['services/api/prisma/'] });
+nd('redis', 'z_data', 'data', 'Redis', 'cache · queue', 'bolt', 1.4, 'Session cache and the job queue backing store.', { prov: 'cloud', paths: ['infra/terraform/redis.tf'] });
+nd('bucket', 'z_data', 'data', 'Object storage', 'images · exports', 'cube', 1.2, 'Product images and nightly exports.', { prov: 'cloud', paths: ['infra/terraform/storage.tf'] });
+nd('secrets', 'z_data', 'data', 'Secrets manager', 'API keys', 'lock', 1.1, 'Holds Stripe, email and database credentials.', { prov: 'cloud', paths: ['infra/terraform/secrets.tf'] });
+
+nd('stripe', 'z_saas', 'saas', 'Stripe', 'payments', 'chart', 1.5, 'Card payments; webhooks confirm captures.', { prov: 'third', desc: 'The API creates payment intents; Stripe calls back `/api/webhooks/stripe`.', paths: ['services/api/src/payments/'] });
+nd('email', 'z_saas', 'saas', 'Email provider', 'transactional email', 'mail', 1.3, 'Order confirmations and shipping updates.', { prov: 'third', paths: ['services/worker/src/jobs/email.ts'] });
+nd('errors', 'z_saas', 'saas', 'Error tracking', 'exceptions · traces', 'eye', 1.1, 'Exceptions from apps, API and worker.', { prov: 'third', paths: ['services/api/src/telemetry.ts'] });
+
+nd('github', 'z_deliv', 'ops', 'GitHub', 'source · Actions', 'branch', 1.4, 'Source of truth; pushes to `main` build and deploy.', { prov: 'third', desc: 'GitHub Actions runs tests, builds images and applies the Helm release.', paths: ['.github/workflows/'] });
+nd('registry', 'z_deliv', 'ops', 'Container registry', 'images', 'cube', 1.2, 'Images tagged by commit.', { prov: 'cloud', paths: ['.github/workflows/build.yml'] });
+nd('k8s', 'z_deliv', 'ops', 'Kubernetes', 'runtime · Helm', 'layers', 1.6, 'Where the API, worker and apps run.', { prov: 'cloud', desc: 'One cluster per environment (staging, production); Helm charts in the repo.', paths: ['infra/helm/'] });
+
+nd('monolith', 'z_legacy', 'legacy', 'Old monolith', 'read-only since 2024', 'clock', 1.0, 'Previous PHP shop; only its reports are still read.', { desc: 'Being decommissioned. Mark retired things here instead of deleting them from the map.', notes: 'INFERRED from the migration notes in `docs/migration.md`; verify before relying on it.', paths: ['legacy/'] });
+
+/* ------------------------------ 4. CONNECTIONS (edges) ------------------------------ */
+/* e(from, to, kind, label, detail, MINOR?) — from = who initiates. One main edge per relationship; secondary links get MINOR
+   (hidden until one end is selected) so the overview stays readable. */
+e('shoppers', 'storefront', 'use', 'browse · buy', 'Shoppers use the storefront in a browser.');
+e('staff', 'admin', 'use', 'manage orders', 'Staff use the admin console.');
+e('devs', 'github', 'use', 'push · review', 'Engineers push to GitHub.');
+e('lb', 'storefront', 'http', '/', 'Path routing at the edge.');
+e('lb', 'admin', 'http', 'admin.example.com', 'Host routing at the edge.');
+e('lb', 'api', 'http', '/api', 'All API calls arrive through the load balancer.');
+e('storefront', 'api', 'http', '/api/stores/{id}/*', 'Same-origin fetch with the session cookie.');
+e('admin', 'api', 'http', '/api/admin/*', 'Bearer token from the identity provider.');
+e('storefront', 'auth', 'auth', 'sign-in', 'Customer sign-in.', MINOR);
+e('admin', 'auth', 'auth', 'SSO', 'Staff single sign-on.', MINOR);
+e('api', 'auth', 'auth', 'verify tokens', 'The API verifies ID tokens and mints sessions.');
+e('api', 'postgres', 'data', 'read / write', 'Prisma client.');
+e('api', 'redis', 'data', 'sessions · enqueue', 'Session cache and job queue.');
+e('redis', 'worker', 'async', 'jobs', 'The worker consumes queued jobs.');
+e('worker', 'postgres', 'data', 'update orders', null, MINOR);
+e('api', 'stripe', 'api', 'payment intents', 'Create and confirm payment intents.');
+e('stripe', 'api', 'http', 'webhooks', 'Stripe posts capture and dispute events to `/api/webhooks/stripe`.');
+e('worker', 'email', 'api', 'send email', 'Order confirmations and shipping updates.');
+e('api', 'bucket', 'data', 'images', 'Signed upload URLs for product images.', MINOR);
+e('api', 'secrets', 'auth', 'keys', null, MINOR);
+e('worker', 'secrets', 'auth', 'keys', null, MINOR);
+e('api', 'errors', 'obs', 'exceptions', null, MINOR);
+e('worker', 'errors', 'obs', 'exceptions', null, MINOR);
+e('storefront', 'errors', 'obs', 'exceptions', null, MINOR);
+e('github', 'registry', 'ship', 'push images', 'Built on every push to `main`.');
+e('registry', 'k8s', 'ship', 'pull images', null);
+e('github', 'k8s', 'ship', 'helm upgrade', 'Actions applies the Helm release.');
+e('k8s', 'api', 'ship', 'runs', null, MINOR);
+e('k8s', 'worker', 'ship', 'runs', null, MINOR);
+e('api', 'monolith', 'data', 'legacy reports (read-only)', null, MINOR);
+
+/* ------------------------------ 5. GUIDED FLOWS ------------------------------ */
+/* flow(id, name, blurb, [[from, to, kind, 'what happens'], ...]) — 4–9 steps, ids must be overview nodes. */
+flow('checkout', 'A shopper checks out', 'From cart to confirmation email.', [
+  ['shoppers', 'storefront', 'use', 'The shopper reviews the cart and presses **Pay**.'],
+  ['storefront', 'api', 'http', '`POST /api/stores/{id}/checkout` with the session cookie.'],
+  ['api', 'postgres', 'data', 'The order is created in `pending` state.'],
+  ['api', 'stripe', 'api', 'A payment intent is created and confirmed.'],
+  ['stripe', 'api', 'http', 'Stripe calls the webhook when the capture succeeds.'],
+  ['api', 'redis', 'async', 'A `send-confirmation` job is enqueued.'],
+  ['redis', 'worker', 'async', 'The worker picks up the job.'],
+  ['worker', 'email', 'api', 'The confirmation email is sent.'],
+]);
+flow('deploy', 'Ship a change', 'Git push to production.', [
+  ['devs', 'github', 'use', 'Push to `main` (after review).'],
+  ['github', 'registry', 'ship', 'Actions runs tests and pushes images tagged by commit.'],
+  ['github', 'k8s', 'ship', '`helm upgrade` rolls out staging, then production after approval.'],
+  ['k8s', 'api', 'ship', 'New API and worker pods replace the old ones.'],
+]);
+
+/* ------------------------------ 6. INSIDE VIEWS ------------------------------ */
+/* view(overviewNodeId, title, subtitle, cat) for the 5–12 nodes that deserve a second level. Chain:
+   .rows([[{ id, name, tag, cols, rows, desc }, ...], ...])   plates, laid out like the overview
+   .n(id, zoneId, [col, row,] name, tag, icon, height, blurb, opts)   local parts (ids become '<view>.<id>')
+   .e('.local', '.other' | 'overviewId', kind, label, detail, MINOR?)   links; '.x' means local
+   .x(side, ['overviewId', ...])   neighbours from the overview, drawn as ghosts (side: back/front/left/right) */
+view('api', 'Orders API', 'Routes on the left, domain modules and clients on the right', 'core')
+  .rows([[
+    { id: 'routes', name: 'HTTP routes', tag: 'Fastify plugins', cols: 2, rows: 2, desc: 'One plugin per resource.' },
+    { id: 'domain', name: 'Domain & clients', tag: 'services · repositories', cols: 2, rows: 2, desc: 'Business logic and outbound clients.' },
+  ]])
+  .n('r_store', 'routes', 'Store routes', '/stores/{id}/*', 'window', 1.4, 'Catalog, cart and checkout for shoppers.', { paths: ['services/api/src/routes/store/'] })
+  .n('r_admin', 'routes', 'Admin routes', '/admin/*', 'cog', 1.3, 'Products, orders, refunds for staff.', { paths: ['services/api/src/routes/admin/'] })
+  .n('r_hooks', 'routes', 'Webhooks', '/webhooks/*', 'mail', 1.2, 'Stripe events.', { paths: ['services/api/src/routes/webhooks/'] })
+  .n('r_health', 'routes', 'Health', '/health · /ready', 'bell', 1.0, 'Probes for Kubernetes.', {})
+  .n('orders', 'domain', 'Orders & carts', 'pricing · state machine', 'cube', 1.6, 'Order lifecycle and cart pricing.', { paths: ['services/api/src/domain/orders/'] })
+  .n('payments', 'domain', 'Payments', 'Stripe client', 'chart', 1.3, 'Payment intents and webhook handling.', { paths: ['services/api/src/payments/'] })
+  .n('identity', 'domain', 'Identity', 'OIDC · sessions', 'key', 1.2, 'Token verification and roles.', { paths: ['services/api/src/auth/'] })
+  .n('repos', 'domain', 'Repositories', 'Prisma', 'db', 1.3, 'Database access.', { paths: ['services/api/prisma/'] })
+  .e('.r_store', '.orders', 'http', '').e('.r_admin', '.orders', 'http', '').e('.r_hooks', '.payments', 'http', '').e('.orders', '.payments', 'http', 'capture')
+  .e('.orders', '.repos', 'data', '').e('.identity', '.repos', 'data', '', null, MINOR).e('.r_store', '.identity', 'auth', '', null, MINOR)
+  .e('storefront', '.r_store', 'http', '').e('admin', '.r_admin', 'http', '').e('stripe', '.r_hooks', 'http', 'webhooks').e('.payments', 'stripe', 'api', '')
+  .e('.repos', 'postgres', 'data', '').e('.orders', 'redis', 'async', 'enqueue').e('k8s', '.r_health', 'http', 'probes', 'Liveness and readiness probes.', MINOR)
+  .x('left', ['storefront', 'admin']).x('right', ['stripe']).x('back', ['postgres', 'redis']).x('front', ['k8s']);
+/* ===================== END ARCHITECTURE DATA ===================== */
+/* =====================================================================
+   APP — navigation, panels, search, flows, hash routing.
+   ===================================================================== */
+(() => {
+  'use strict';
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const md = s => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+  const paras = d => (Array.isArray(d) ? d : d ? [d] : []);
+
+  /* ---------- data validation (also run by check.js) ---------- */
+  const problems = validateArchitecture({ META, PROVIDERS, CATS, KINDS, ZONES, NODES, EDGES, FLOWS, INSIDE });
+  problems.errors.forEach(x => console.error('[architecture data] ' + x));
+  problems.warnings.forEach(x => console.warn('[architecture data] ' + x));
+
+  /* ---------- model indexes ---------- */
+  NODES.forEach(n => { n.inside = !!INSIDE[n.id]; });
+  const ROOT = { id: 'root', title: META.title, sub: META.tagline || '', zones: ZONES.map(z => Object.assign({ titleSize: 1.25 }, z)), nodes: NODES, edges: EDGES, edgeBase: .55, ext: [] };
+  const NODE = new Map(), ZONE = new Map();
+  NODES.forEach(n => NODE.set(n.id, { def: n, view: 'root' }));
+  ZONES.forEach(z => ZONE.set(z.id, { def: z, view: 'root' }));
+  for (const v of Object.values(INSIDE)) {
+    v.nodes.forEach(n => NODE.set(n.id, { def: n, view: v.id }));
+    v.zones.forEach(z => ZONE.set(z.id, { def: z, view: v.id }));
+  }
+  const viewDef = id => (id === 'root' ? ROOT : Object.assign({ edgeBase: 1 }, INSIDE[id]));
+  const viewTitle = id => (id === 'root' ? 'Overview' : INSIDE[id].title);
+  const nodeInfo = () => ({ cats: CATS, resolveGhost: ref => (NODE.get(ref) || {}).def });
+
+  Engine.setConfig(CATS, KINDS, PROVIDERS);
+  document.title = META.title + ' · 3D Architecture Map';
+  $('#brandName').textContent = META.brand || META.title; $('#brandSub').textContent = META.brandSub || 'System Architecture';
+  let nav = ['root'];
+  const cur = () => nav[nav.length - 1];
+  let panelOpen = innerWidth >= 1280, flowTimer = null, activeFlow = null, connRefs = [];
+
+  /* ---------- history: Back = undo, 30 states deep ---------- */
+  const HIST_MAX = 30, hist = [];
+  function snapshot() {
+    const st = Engine.st, o = st.sel; let sel = null;
+    if (o && o.kind === 'box') sel = { t: 'box', id: o.ghost ? 'ghost:' + o.id : o.id };
+    else if (o && o.kind === 'edge') sel = { t: 'edge', a: o.a.id, b: o.b.id, k: o.k, l: o.label };
+    return { view: cur(), nav: nav.slice(), pose: Engine.targetPose(), sel, zone: st.zone || null, flow: activeFlow ? activeFlow.id : null, flowActive: st.flow ? st.flow.active : -1, panelOpen };
+  }
+  const skey = s => [s.view, s.sel ? (s.sel.id || s.sel.a + '>' + s.sel.b + s.sel.k + s.sel.l) : '', s.zone, s.flow, s.flowActive, s.panelOpen].join('|');
+  const samePose = (a, b) => Math.hypot(a.tx - b.tx, a.tz - b.tz) < .3 && Math.abs(a.dist - b.dist) < Math.max(.4, a.dist * .01) && Math.abs(a.yaw - b.yaw) < .02 && Math.abs(a.pitch - b.pitch) < .02;
+  function push() { // remember the state we are about to leave
+    const s = snapshot(), last = hist[hist.length - 1];
+    if (last && skey(last) === skey(s) && samePose(last.pose, s.pose)) return;
+    hist.push(s); if (hist.length > HIST_MAX) hist.shift(); renderBack();
+  }
+  function renderBack() {
+    const b = $('#bBack'); b.style.display = hist.length ? '' : 'none';
+    b.title = 'Back: undo the last move (' + hist.length + ' step' + (hist.length === 1 ? '' : 's') + ' remembered) · Esc';
+    b.querySelector('.cnt').textContent = hist.length || '';
+  }
+  function applyState(s) { // restore selection / district / flow in the current scene (camera is handled by the caller)
+    const st = Engine.st, sc = Engine.scene();
+    clearFlowState(); st.sel = null; st.zone = null; st.search = null;
+    const f = s.flow && cur() === 'root' ? FLOWS.find(x => x.id === s.flow) : null;
+    if (f && buildFlow(f)) { st.flow.active = s.flowActive; renderFlow(); }
+    else if (s.sel && s.sel.t === 'box' && sc.byId.get(s.sel.id)) { st.sel = sc.byId.get(s.sel.id); renderNode(st.sel); }
+    else if (s.sel && s.sel.t === 'edge' && (st.sel = sc.edges.find(e => e.a.id === s.sel.a && e.b.id === s.sel.b && e.k === s.sel.k && e.label === s.sel.l) || null)) renderEdge(st.sel);
+    else if (s.zone && sc.plateById.get(s.zone)) { st.zone = s.zone; renderZone(sc.plateById.get(s.zone)); }
+    else showContext();
+    setPanel(s.panelOpen); st.userMoved = true; renderChrome(); syncHash();
+  }
+  function goBack() {
+    const s = hist.pop(); renderBack(); if (!s) return;
+    stopPlay();
+    if (s.view === cur()) { applyState(s); Engine.flyPose(s.pose, 950); return; }
+    const from = cur(), sc = Engine.scene(); nav = s.nav.slice(); clearFlowState();
+    const box = from === 'root' ? sc.byId.get(s.view) : null;
+    if (box) Engine.diveOut(box, () => swapTo(s.view, 'in', null, { state: s }));
+    else Engine.fadeOut(() => swapTo(s.view, 'out', from, { state: s }));
+  }
+
+  /* ---------- helpers ---------- */
+  function toast(msg) { const t = $('#toast'); t.textContent = msg; t.style.opacity = 1; clearTimeout(toast.h); toast.h = setTimeout(() => (t.style.opacity = 0), 2200); }
+  function updateInsets() {
+    const wide = innerWidth > 900;
+    const l = wide && !$('#left').classList.contains('collapsed') ? $('#left').getBoundingClientRect().right + 10 : 0;
+    const r = wide && panelOpen ? innerWidth - $('#right').getBoundingClientRect().left + 10 : 0;
+    const b = !wide && panelOpen ? Math.round(innerHeight * .46) + 8 : 0;
+    Engine.setInsets(l, r, 62, b);
+    clearTimeout(updateInsets.t);
+    updateInsets.t = setTimeout(() => { const st = Engine.st; if (Engine.scene() && !st.userMoved && !st.sel && !st.zone && !st.flow && !st.transition) Engine.home(); }, 150);
+  }
+  function setPanel(open) {
+    panelOpen = open; $('#right').classList.toggle('empty', !open);
+    if (!open) $('#right').style.visibility = 'hidden'; else $('#right').style.visibility = '';
+    $('#right').style.transform = open ? '' : 'translateX(110%)';
+    updateInsets();
+  }
+  function provBadge(p) { const c = PROVIDERS[p] || PROVIDERS.own, col = c.color || '#5eead4'; return `<span class="badge" style="color:${col};border-color:${col}">${esc(c.label)}</span>`; }
+  function hashFor(sel) {
+    const v = cur(); let h = v === 'root' ? '' : v;
+    if (sel) h += '~' + sel;
+    return h;
+  }
+  function syncHash() {
+    const s = Engine.st.sel; let id = null;
+    if (s && s.kind === 'box' && !s.ghost) id = s.id; else if (s && s.kind === 'plate') id = s.id;
+    try { history.replaceState(null, '', '#' + hashFor(id)); } catch (e) { /* file:// sandboxes */ }
+  }
+
+  /* ---------- navigation ---------- */
+  function renderChrome() {
+    // breadcrumbs
+    const c = $('#crumbs'); c.innerHTML = '';
+    nav.forEach((id, i) => {
+      if (i) { const s = document.createElement('span'); s.className = 'sep'; s.textContent = '›'; c.appendChild(s); }
+      const b = document.createElement('button'); b.textContent = viewTitle(id); if (i === nav.length - 1) b.className = 'cur';
+      else b.onclick = () => navigate(id);
+      c.appendChild(b);
+    });
+    renderBack();
+    // left lists
+    const def = viewDef(cur()), sc = Engine.scene();
+    const zl = $('#zones'); zl.innerHTML = '';
+    def.zones.forEach(z => {
+      const n = def.nodes.filter(x => x.zone === z.id).length;
+      const b = document.createElement('button'); b.className = 'zone';
+      b.innerHTML = `<span class="sw" style="background:${z.color}"></span><span>${esc(z.name)}</span><small>${n}</small>`;
+      b.onclick = () => focusZone(z.id); zl.appendChild(b);
+    });
+    // category legend
+    const counts = {}; def.nodes.forEach(n => (counts[n.cat] = (counts[n.cat] || 0) + 1));
+    const lg = $('#legend'); lg.innerHTML = '';
+    Object.keys(CATS).filter(k => counts[k]).forEach(k => {
+      const d = document.createElement('div'); d.className = 'lg' + (Engine.st.catOn[k] === false ? ' off' : '');
+      d.innerHTML = `<span class="sw" style="background:${CATS[k].color};color:${CATS[k].color}"></span>${esc(CATS[k].label)}<span class="n">${counts[k]}</span>`;
+      d.onclick = () => { Engine.st.catOn[k] = Engine.st.catOn[k] === false; renderChrome(); };
+      lg.appendChild(d);
+    });
+    // connection legend
+    const kinds = {}; def.edges.forEach(e => (kinds[e.kind] = (kinds[e.kind] || 0) + 1));
+    const el = $('#elegend'); el.innerHTML = '';
+    Object.keys(KINDS).filter(k => kinds[k]).forEach(k => {
+      const d = document.createElement('div'); d.className = 'lg' + (Engine.st.kindOn[k] === false ? ' off' : '');
+      d.innerHTML = `<span class="sw" style="background:${KINDS[k].color};color:${KINDS[k].color};height:4px;margin:4px 0;border-radius:2px;${KINDS[k].dash ? 'background:repeating-linear-gradient(90deg,' + KINDS[k].color + ' 0 4px,transparent 4px 7px)' : ''}"></span>${esc(KINDS[k].label)}<span class="n">${kinds[k]}</span>`;
+      d.onclick = () => { Engine.st.kindOn[k] = Engine.st.kindOn[k] === false; renderChrome(); };
+      el.appendChild(d);
+    });
+    // flows (root only)
+    const fl = $('#flows'); fl.innerHTML = '';
+    FLOWS.forEach(f => {
+      const b = document.createElement('button'); b.className = 'flow' + (activeFlow === f ? ' on' : '');
+      b.innerHTML = `<b>${esc(f.name)}</b><span>${esc(f.blurb)}</span>`; b.onclick = () => startFlow(f); fl.appendChild(b);
+    });
+  }
+
+  function swapTo(id, mode, originId, opts) {
+    const S = opts && opts.state;
+    setPanel(S ? S.panelOpen : panelOpen); updateInsets();
+    const sc = Engine.load(viewDef(id), nodeInfo(), { fly: false });
+    const h = sc.home;
+    if (mode === 'out' && originId && sc.byId.get(originId)) { const b = sc.byId.get(originId); Object.assign(Engine.cam, { tx: b.x, ty: .5, tz: b.z, yaw: h.yaw - .4, pitch: 1.05, dist: 6 }); }
+    else if (mode === 'intro') Object.assign(Engine.cam, h, { dist: h.dist * 1.8, yaw: h.yaw - 1.0, pitch: .46 });
+    else Object.assign(Engine.cam, h, { dist: h.dist * .3, pitch: 1.2, yaw: h.yaw - .7 });
+    Engine.flyPose(S ? S.pose : h, mode === 'intro' ? 2600 : 1400);
+    clearFlowState();
+    if (S) applyState(S); else { showContext(); renderChrome(); syncHash(); }
+  }
+  function enter(id, then, noPush) {
+    const box = Engine.scene().byId.get(id); if (!box || !INSIDE[id]) return;
+    if (!noPush) push();
+    nav = ['root', id]; clearFlowState();
+    Engine.diveOut(box, () => { swapTo(id, 'in'); if (then) then(); });
+  }
+  function up(noPush) {
+    if (nav.length < 2) return;
+    if (!noPush) push();
+    const from = nav.pop(); clearFlowState();
+    Engine.fadeOut(() => swapTo(nav[nav.length - 1], 'out', from));
+  }
+  function navigate(viewId, selId, opts) {
+    const np = !!(opts && opts.noPush);
+    if (viewId === cur()) { if (selId) selectById(selId, true, np); return; }
+    if (!np) push();
+    if (cur() === 'root' && INSIDE[viewId] && Engine.scene().byId.get(viewId)) { enter(viewId, () => selId && setTimeout(() => selectById(selId, true, true), 900), true); return; }
+    if (nav.length > 1 && viewId === 'root') { const from = nav[nav.length - 1]; nav = ['root']; clearFlowState(); Engine.fadeOut(() => { swapTo('root', 'out', from); if (selId) setTimeout(() => selectById(selId, true, true), 1000); }); return; }
+    nav = viewId === 'root' ? ['root'] : ['root', viewId]; clearFlowState();
+    Engine.fadeOut(() => { swapTo(viewId, 'in'); if (selId) setTimeout(() => selectById(selId, true, true), 1000); });
+  }
+  function clearRaw() { Engine.st.sel = null; Engine.st.zone = null; Engine.st.search = null; showContext(); renderChrome(); syncHash(); }
+  function clear() { const st = Engine.st; if (!st.sel && !st.zone) return; push(); clearRaw(); }
+  function goHome() { push(); if (activeFlow) clearFlowState(); clearRaw(); Engine.home(); }
+
+  /* ---------- selection ---------- */
+  function selectById(id, fly, noPush) {
+    const sc = Engine.scene(); const o = sc.byId.get(id) || sc.byId.get('ghost:' + id) || sc.plateById.get(id);
+    if (o) select(o, fly, noPush);
+  }
+  function select(o, fly, noPush) {
+    const st = Engine.st;
+    if (o.kind === 'plate') return focusZone(o.id, noPush);
+    if (o.kind === 'box' && o === st.sel && o.def.inside && !o.ghost && !activeFlow) return enter(o.id, null, noPush);
+    if (o === st.sel && !activeFlow) { if (fly !== false && o.kind === 'box') Engine.focusBox(o); setPanel(true); return; }
+    if (!noPush) push();
+    if (activeFlow) clearFlow(true);
+    st.sel = o; setPanel(true);
+    if (o.kind === 'box') { if (fly !== false) Engine.focusBox(o); renderNode(o); }
+    else if (o.kind === 'edge') renderEdge(o);
+    renderChrome(); syncHash();
+  }
+  function focusZone(id, noPush) {
+    const st = Engine.st;
+    if (!noPush && !(st.zone === id && !st.sel && !activeFlow)) push();
+    st.sel = null; if (activeFlow) clearFlow(true);
+    setPanel(true); Engine.focusPlate(id); renderZone(Engine.scene().plateById.get(id)); renderChrome(); syncHash();
+  }
+  function open(o) {
+    if (o.kind === 'plate') return focusZone(o.id);
+    if (o.kind === 'box') {
+      if (o.ghost) { navigate('root', o.id); return; }
+      if (o.def.inside) { enter(o.id); return; }
+      select(o);
+    } else select(o);
+  }
+
+  /* ---------- detail renderers ---------- */
+  const R = () => $('#detail');
+  function put(html) { const d = R(); d.innerHTML = html; d.scrollTop = 0; wireDetail(); }
+  function sec(title, inner) { return inner ? `<h5>${esc(title)}</h5>${inner}` : ''; }
+  function factsHtml(f) { return f && f.length ? `<dl class="facts">${f.map(r => `<dt>${esc(r[0])}</dt><dd>${md(r[1])}</dd>`).join('')}</dl>` : ''; }
+  function listHtml(a) { return a && a.length ? `<ul>${a.map(x => `<li>${md(x)}</li>`).join('')}</ul>` : ''; }
+  function chips(a) { return a && a.length ? `<div class="tech">${a.map(x => `<span>${esc(x)}</span>`).join('')}</div>` : ''; }
+  function pathsHtml(a) { return a && a.length ? `<div class="paths">${a.map(x => `<div><span class="path">${esc(x)}</span></div>`).join('')}</div>` : ''; }
+  function closeBtn() { return `<button class="ibtn close" data-act="close" title="Close panel">✕</button>`; }
+
+  function connectionsFor(o) {
+    const sc = Engine.scene(); connRefs = []; const out = [], inn = [];
+    for (const e of sc.edges) {
+      if (e.a === o) out.push(e); else if (e.b === o) inn.push(e);
+    }
+    const row = (e, other, arrow) => {
+      connRefs.push(other);
+      return `<button data-act="conn" data-i="${connRefs.length - 1}"><span class="arr" style="color:${KINDS[e.k].color}">${arrow}</span><span><b>${esc(other.name)}</b><em>${esc(e.label || KINDS[e.k].label)}${e.def.d ? ' — ' + md(e.def.d) : ''}</em></span></button>`;
+    };
+    let h = '';
+    if (out.length) h += `<h5>Calls / feeds (${out.length})</h5><div class="conn">${out.map(e => row(e, e.b, '→')).join('')}</div>`;
+    if (inn.length) h += `<h5>Called by / fed by (${inn.length})</h5><div class="conn">${inn.map(e => row(e, e.a, '←')).join('')}</div>`;
+    return h;
+  }
+  function renderNode(b) {
+    const d = b.def, info = NODE.get(d.id) || { view: 'root' }, cat = CATS[d.cat];
+    let html = closeBtn() + `<div class="kicker"><span class="dot" style="background:${cat.color}"></span>${esc(cat.label)}${provBadge(d.prov)}</div>`;
+    html += `<h2>${esc(d.name)}</h2><div class="tag">${esc(d.tag || '')}</div>`;
+    if (b.ghost) html += `<p class="note">Neighbouring system — shown here for context. It lives in the overview.</p><div class="cta"><button class="btn primary" data-act="goroot" data-id="${esc(d.id)}">Show in overview</button></div>`;
+    paras(d.desc || d.blurb).forEach(p => (html += `<p>${md(p)}</p>`));
+    if (!b.ghost) {
+      const kids = INSIDE[d.id] && cur() === 'root' ? INSIDE[d.id] : null;
+      html += `<div class="cta">${d.inside ? `<button class="btn primary" data-act="enter" data-id="${esc(d.id)}">Open inside ▸</button>` : ''}<button class="btn" data-act="focus">Zoom to it</button></div>`;
+      if (kids) html += sec('What\'s inside', `<div class="kids">${kids.nodes.map(n => `<button data-act="go" data-view="${esc(kids.id)}" data-sel="${esc(n.id)}"><span class="sw" style="background:${CATS[n.cat].color}"></span>${esc(n.name)}</button>`).join('')}</div>`);
+    }
+    html += sec('Facts', factsHtml(d.facts)) + sec('What it does', listHtml(d.does)) + sec('Tech', chips(d.tech));
+    html += connectionsFor(b);
+    html += sec('Where in the repo', pathsHtml(d.paths));
+    if (d.notes) html += `<p class="note" style="margin-top:14px">${md(d.notes)}</p>`;
+    put(html);
+  }
+  function renderZone(p) {
+    const d = p.def, def = viewDef(cur()), nodes = def.nodes.filter(n => n.zone === d.id), sc = Engine.scene();
+    // cross-district links
+    const other = {};
+    for (const e of sc.edges) {
+      const za = e.a.zone, zb = e.b.zone; if (za === zb) continue;
+      if (za === d.id) other[zb] = (other[zb] || 0) + 1; else if (zb === d.id) other[za] = (other[za] || 0) + 1;
+    }
+    let html = closeBtn() + `<div class="kicker"><span class="dot" style="background:${d.color}"></span>District · ${esc(CATS[d.cat].label)}</div><h2>${esc(d.name)}</h2><div class="tag">${esc(d.tag || '')}</div>`;
+    paras(d.desc).forEach(x => (html += `<p>${md(x)}</p>`));
+    html += `<div class="cta"><button class="btn" data-act="allzones">Show all districts</button></div>`;
+    html += sec(`Components (${nodes.length})`, `<div class="kids">${nodes.map(n => `<button data-act="pick" data-id="${esc(n.id)}"><span class="sw" style="background:${CATS[n.cat].color}"></span>${esc(n.name)}</button>`).join('')}</div>`);
+    const oz = Object.entries(other).filter(([k]) => sc.plateById.get(k));
+    if (oz.length) html += sec('Connected districts', `<div class="conn">${oz.map(([k, n]) => `<button data-act="zone" data-id="${esc(k)}"><span class="arr">↔</span><span><b>${esc(sc.plateById.get(k).name)}</b><em>${n} connection${n > 1 ? 's' : ''}</em></span></button>`).join('')}</div>`);
+    put(html);
+  }
+  function renderEdge(e) {
+    const k = KINDS[e.k];
+    connRefs = [e.a, e.b];
+    let html = closeBtn() + `<div class="kicker"><span class="dot" style="background:${k.color}"></span>Connection · ${esc(k.label)}</div>`;
+    html += `<h2>${esc(e.a.name)} → ${esc(e.b.name)}</h2><div class="tag">${esc(e.label || '')}</div>`;
+    html += `<p>${e.def.d ? md(e.def.d) : esc(e.a.name) + ' → ' + esc(e.b.name) + ': ' + esc(e.label || k.label) + '.'}</p><p class="note">Type: ${esc(k.label)}. Open either end below to see how it is implemented there.</p>`;
+    html += `<div class="conn"><button data-act="conn" data-i="0"><span class="arr">●</span><span><b>${esc(e.a.name)}</b><em>${esc(e.a.def.tag || '')}</em></span></button><button data-act="conn" data-i="1"><span class="arr">●</span><span><b>${esc(e.b.name)}</b><em>${esc(e.b.def.tag || '')}</em></span></button></div>`;
+    put(html);
+  }
+  function statsFor() {
+    const inner = Object.values(INSIDE).reduce((s, v) => s + v.nodes.length, 0);
+    const byProv = Object.keys(PROVIDERS).filter(k => k !== 'own').map(k => [k, NODES.filter(n => n.prov === k).length]);
+    return { total: NODES.length, inner, edges: EDGES.length, zones: ZONES.length, byProv };
+  }
+  function showContext() {
+    const v = cur(), st = statsFor();
+    if (v === 'root') {
+      const startItems = (META.start || []).map(s => {
+        const attr = s.act === 'prov' ? `data-act="prov" data-p="${esc(s.id)}"` : `data-act="${esc(s.act)}" data-id="${esc(s.id)}"`;
+        const arrow = s.act === 'flow' ? '▶' : s.act === 'prov' ? '◎' : '▸';
+        return `<button ${attr}><span class="arr">${arrow}</span><span><b>${esc(s.title)}</b><em>${esc(s.sub || '')}</em></span></button>`;
+      }).join('');
+      const stats = [[st.total, 'systems'], [st.edges, 'connections'], [st.zones, 'districts'], [st.inner, 'inner parts'], ...st.byProv.map(([k, n]) => [n, PROVIDERS[k].label])];
+      put(closeBtn() + `<div class="kicker"><span class="dot" style="background:var(--accent)"></span>System overview</div><h2>${esc(META.title)}</h2><div class="tag">${esc(META.tagline || '')}</div>
+      ${paras(META.intro).map(p => `<p>${md(p)}</p>`).join('')}
+      <div class="stats">${stats.map(([n, l]) => `<div><b>${n}</b><span>${esc(l)}</span></div>`).join('')}</div>
+      ${startItems ? sec('Start here', `<div class="conn">${startItems}</div>`) : ''}
+      ${sec('Districts', `<div class="kids">${ZONES.map(z => `<button data-act="zone" data-id="${z.id}"><span class="sw" style="background:${z.color}"></span>${esc(z.name)}</button>`).join('')}</div>`)}
+      ${META.footnote ? `<p class="note" style="margin-top:16px">${md(META.footnote)}</p>` : ''}`);
+    } else {
+      const d = INSIDE[v]; const parent = NODE.get(v);
+      put(closeBtn() + `<div class="kicker"><span class="dot" style="background:${CATS[d.cat].color}"></span>Inside</div><h2>${esc(d.title)}</h2><div class="tag">${esc(d.sub)}</div>
+      ${parent ? paras(parent.def.desc || parent.def.blurb).map(p => `<p>${md(p)}</p>`).join('') : ''}
+      <div class="cta"><button class="btn primary" data-act="up">◂ Back to overview</button></div>
+      ${sec('Parts', `<div class="kids">${d.nodes.map(n => `<button data-act="pick" data-id="${esc(n.id)}"><span class="sw" style="background:${CATS[n.cat].color}"></span>${esc(n.name)}</button>`).join('')}</div>`)}
+      <p class="note" style="margin-top:14px">Dashed ghost blocks around the plate are neighbouring systems from the overview. Click one to jump to it.</p>`);
+    }
+  }
+
+  /* ---------- detail wiring ---------- */
+  function wireDetail() {
+    R().querySelectorAll('[data-act]').forEach(el => {
+      el.onclick = () => {
+        const a = el.dataset.act, id = el.dataset.id;
+        if (a === 'close') { if (activeFlow) clearFlow(); else { push(); Engine.st.sel = null; setPanel(false); renderChrome(); syncHash(); } }
+        else if (a === 'enter') enter(id);
+        else if (a === 'focus') { const s = Engine.st.sel; if (s && s.kind === 'box') Engine.focusBoxById(s.id); }
+        else if (a === 'conn') { const o = connRefs[+el.dataset.i]; if (o) select(o, true); }
+        else if (a === 'pick') selectById(id, true);
+        else if (a === 'zone') focusZone(id);
+        else if (a === 'allzones') goHome();
+        else if (a === 'go') navigate(el.dataset.view, el.dataset.sel);
+        else if (a === 'goroot') navigate('root', id);
+        else if (a === 'up') up();
+        else if (a === 'flow') startFlow(FLOWS.find(f => f.id === id));
+        else if (a === 'prov') setProv(el.dataset.p);
+        else if (a === 'step') stepFlow(+el.dataset.i);
+        else if (a === 'play') playFlow();
+        else if (a === 'allsteps') { Engine.st.flow.active = -1; stopPlay(); renderFlow(); }
+      };
+    });
+  }
+
+  /* ---------- flows ---------- */
+  function clearFlowState() { if (flowTimer) clearInterval(flowTimer); flowTimer = null; activeFlow = null; Engine.setFlow(null); }
+  function clearFlow(silent) { if (!silent) push(); clearFlowState(); if (!silent) { Engine.st.sel = null; showContext(); Engine.home(); } renderChrome(); }
+  function stopPlay() { if (flowTimer) clearInterval(flowTimer); flowTimer = null; }
+  function buildFlow(f) {
+    if (!f) return false;
+    clearFlowState();
+    const sc = Engine.scene(), nodes = new Set(), nums = new Map(), steps = [];
+    f.steps.forEach((s, i) => {
+      const a = sc.byId.get(s[0]), b = sc.byId.get(s[1]); if (!a || !b) return;
+      const edge = { kind: 'edge', a, b, k: s[2], label: '', pairIdx: 0, pairN: 1, phase: 0, def: {}, alpha: 1 };
+      steps.push({ edge, kind: s[2], text: s[3], a, b });
+      nodes.add(a.id); nodes.add(b.id);
+      const add = (id, t) => { const arr = nums.get(id) || []; if (!arr.includes(t)) arr.push(t); nums.set(id, arr); };
+      if (i === 0) add(a.id, '▶'); add(b.id, String(i + 1));
+    });
+    activeFlow = f;
+    Engine.st.sel = null; Engine.st.zone = null; Engine.setFlow({ name: f.name, steps, nodes, nums, active: -1 });
+    return true;
+  }
+  function showFlow(f) { if (buildFlow(f)) { Engine.home(); setPanel(true); renderFlow(); renderChrome(); } }
+  function startFlow(f) {
+    if (!f || activeFlow === f) return;
+    push();
+    if (cur() !== 'root') { navigate('root', null, { noPush: true }); setTimeout(() => showFlow(f), 1900); return; }
+    showFlow(f);
+  }
+  function renderFlow() {
+    const f = activeFlow, fl = Engine.st.flow; if (!f || !fl) return;
+    let html = closeBtn() + `<div class="kicker"><span class="dot" style="background:var(--accent)"></span>Guided flow</div><h2>${esc(f.name)}</h2><div class="tag">${esc(f.blurb)}</div>`;
+    html += `<div class="cta"><button class="btn primary" data-act="play">${flowTimer ? '❚❚ Pause' : '▶ Play step by step'}</button><button class="btn" data-act="allsteps">Show all</button><button class="btn" data-act="close">Exit flow</button></div>`;
+    html += `<h5>Steps</h5>`;
+    fl.steps.forEach((s, i) => {
+      html += `<div class="stepn" style="cursor:pointer;${fl.active === i ? 'background:rgba(94,234,212,.08);border-radius:10px;padding:6px;margin-left:-6px' : ''}" data-act="step" data-i="${i}"><i>${i + 1}</i><div><b>${esc(s.a.name)} → ${esc(s.b.name)}</b><br>${md(s.text)}</div></div>`;
+    });
+    put(html);
+  }
+  function stepFlow(i) {
+    const fl = Engine.st.flow; if (!fl) return; fl.active = i; const s = fl.steps[i]; Engine.flyMid(s.a, s.b);
+    const keep = R().scrollTop; renderFlow(); R().scrollTop = keep;
+  }
+  function playFlow() {
+    const fl = Engine.st.flow; if (!fl) return;
+    if (flowTimer) { stopPlay(); renderFlow(); return; }
+    let i = fl.active < 0 ? 0 : (fl.active + 1) % fl.steps.length;
+    stepFlow(i);
+    flowTimer = setInterval(() => { const f2 = Engine.st.flow; if (!f2) return stopPlay(); i = (f2.active + 1) % f2.steps.length; stepFlow(i); }, 3800);
+    renderFlow();
+  }
+
+  /* ---------- provider spotlight ---------- */
+  function setProv(p) {
+    Engine.st.prov = p;
+    document.querySelectorAll('#prov .chip').forEach(c => c.classList.toggle('on', c.dataset.p === p));
+    if (p !== 'all' && PROVIDERS[p]) toast('Spotlight: ' + PROVIDERS[p].label);
+  }
+  $('#prov').innerHTML = `<button class="chip on" data-p="all">All</button>` + Object.entries(PROVIDERS).map(([k, c]) => `<button class="chip" data-p="${esc(k)}">${esc(c.label)}</button>`).join('');
+  document.querySelectorAll('#prov .chip').forEach(c => (c.onclick = () => setProv(c.dataset.p)));
+
+  /* ---------- search ---------- */
+  const INDEX = [];
+  NODE.forEach((v, id) => {
+    const d = v.def, z = ZONE.get(d.zone);
+    INDEX.push({ id, view: v.view, name: d.name, sub: (v.view === 'root' ? '' : viewTitle(v.view) + ' · ') + (z ? z.def.name : ''), hay: [d.name, d.tag, d.blurb, ...paras(d.desc), ...(d.does || []), ...(d.tech || []), ...(d.paths || []), ...(d.facts || []).flat()].join(' ').toLowerCase(), nm: d.name.toLowerCase(), tg: (d.tag || '').toLowerCase(), cat: d.cat });
+  });
+  let results = [], hi = 0;
+  const sIn = $('#search'), sOut = $('#results');
+  function runSearch(q) {
+    q = q.trim().toLowerCase();
+    if (!q) { results = []; sOut.classList.remove('open'); Engine.st.search = null; return; }
+    const words = q.split(/\s+/);
+    results = INDEX.map(e => {
+      let s = 0;
+      for (const w of words) { if (e.nm.startsWith(w)) s += 5; else if (e.nm.includes(w)) s += 4; else if (e.tg.includes(w)) s += 3; else if (e.hay.includes(w)) s += 1; else { s = -1e9; break; } }
+      return [e, s];
+    }).filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]).slice(0, 9).map(x => x[0]);
+    hi = 0; drawResults();
+    // spotlight matches in the current scene
+    const set = new Set(); const sc = Engine.scene();
+    INDEX.forEach(e => { if (words.every(w => e.hay.includes(w)) && sc.byId.get(e.id)) set.add(e.id); });
+    Engine.st.search = set.size ? set : null;
+  }
+  function drawResults() {
+    sOut.classList.toggle('open', results.length > 0);
+    sOut.innerHTML = results.map((r, i) => `<button class="${i === hi ? 'hi' : ''}" data-i="${i}"><b>${esc(r.name)}</b><span>${esc(r.sub)}</span></button>`).join('');
+    sOut.querySelectorAll('button').forEach(b => (b.onclick = () => pickResult(results[+b.dataset.i])));
+  }
+  function pickResult(r) {
+    if (!r) return; sIn.value = ''; runSearch('');
+    if (r.view === cur()) selectById(r.id, true); else navigate(r.view, r.id);
+  }
+  sIn.addEventListener('input', () => runSearch(sIn.value));
+  sIn.addEventListener('keydown', ev => {
+    if (ev.key === 'ArrowDown') { hi = Math.min(results.length - 1, hi + 1); drawResults(); ev.preventDefault(); }
+    else if (ev.key === 'ArrowUp') { hi = Math.max(0, hi - 1); drawResults(); ev.preventDefault(); }
+    else if (ev.key === 'Enter') { pickResult(results[hi]); }
+    else if (ev.key === 'Escape') { sIn.value = ''; runSearch(''); sIn.blur(); }
+  });
+
+  /* ---------- tooltip ---------- */
+  const tip = $('#tip');
+  Engine.cb.hover = (o, x, y) => {
+    if (!o) { tip.style.opacity = 0; return; }
+    let t = '';
+    if (o.kind === 'box') t = `<b>${esc(o.name)}</b><span>${esc(o.def.blurb || o.def.tag || '')}</span>${o.def.inside && !o.ghost ? '<i>double-click to dive inside ▸</i>' : o.ghost ? '<i>neighbour — click to inspect</i>' : '<i>click to inspect</i>'}`;
+    else if (o.kind === 'plate') t = `<b>${esc(o.name)}</b><span>${esc(o.tag)}</span><i>click to zoom to this district</i>`;
+    else if (o.kind === 'edge') t = `<b>${esc(o.a.name)} → ${esc(o.b.name)}</b><span>${esc(o.label || KINDS[o.k].label)}</span><i>click for details</i>`;
+    tip.innerHTML = t; tip.style.opacity = 1;
+    tip.style.left = Math.min(innerWidth - 300, x + 18) + 'px'; tip.style.top = Math.min(innerHeight - 90, y + 16) + 'px';
+  };
+  Engine.cb.select = o => select(o, true);
+  Engine.cb.enter = o => open(o);
+  Engine.cb.empty = () => { if (Engine.st.sel || Engine.st.zone) clear(); };
+
+  /* ---------- toolbar + keys ---------- */
+  const tog = (id, key, msg) => { const b = $(id); b.classList.toggle('on', Engine.st[key]); };
+  $('#bInfo').onclick = () => { push(); if (activeFlow) clearFlowState(); Engine.st.sel = null; Engine.st.zone = null; showContext(); setPanel(true); renderChrome(); syncHash(); };
+  $('#bBack').onclick = goBack;
+  $('#bHome').onclick = goHome;
+  $('#bRot').onclick = () => { Engine.st.rotate = !Engine.st.rotate; tog('#bRot', 'rotate'); };
+  $('#bLbl').onclick = () => { Engine.st.labels = !Engine.st.labels; tog('#bLbl', 'labels'); };
+  $('#bFlow').onclick = () => { Engine.st.particles = !Engine.st.particles; tog('#bFlow', 'particles'); };
+  $('#bFull').onclick = () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); };
+  $('#brand').onclick = () => navigate('root');
+  $('#menuBtn').onclick = () => { $('#left').classList.toggle('collapsed'); updateInsets(); setTimeout(updateInsets, 300); };
+  $('#zAll').onclick = goHome;
+  $('#fClear').onclick = () => { if (activeFlow) clearFlow(); };
+  $('#lAll').onclick = () => { Engine.st.catOn = {}; Engine.st.kindOn = {}; setProv('all'); renderChrome(); };
+  addEventListener('keydown', ev => {
+    if (ev.target === sIn) return;
+    const k = ev.key, c = Engine.cam;
+    if (k === 'Escape') goBack();
+    else if (k === '/') { ev.preventDefault(); $('#left').classList.remove('collapsed'); updateInsets(); sIn.focus(); }
+    else if (k === 'r' || k === 'R') goHome();
+    else if (k === 'l' || k === 'L') $('#bLbl').click();
+    else if (k === 'f' || k === 'F') $('#bFlow').click();
+    else if (k === 'a' || k === 'A') $('#bRot').click();
+    else if (k === 'ArrowLeft') c.yaw -= .08; else if (k === 'ArrowRight') c.yaw += .08;
+    else if (k === 'ArrowUp') c.pitch = Math.min(1.5, c.pitch + .05); else if (k === 'ArrowDown') c.pitch = Math.max(.12, c.pitch - .05);
+    else if (k === '+' || k === '=') c.dist = Math.max(4, c.dist * .9); else if (k === '-') c.dist = Math.min(220, c.dist * 1.1);
+  });
+  addEventListener('resize', () => { updateInsets(); });
+  addEventListener('hashchange', () => { /* manual edits to the URL hash */ const h = location.hash.slice(1); applyHash(h, true); });
+
+  /* ---------- boot ---------- */
+  function applyHash(h, animate) {
+    const [v, s] = h.split('~'); const view = v && INSIDE[v] ? v : 'root';
+    const target = s || null;
+    if (animate) { if (view !== cur()) navigate(view, target); else if (target) selectById(target, true); return; }
+    nav = view === 'root' ? ['root'] : ['root', view];
+    swapTo(view, 'intro');
+    if (target) setTimeout(() => selectById(target, true), 1600);
+  }
+  if (innerWidth < 1100) $('#left').classList.add('collapsed');
+  updateInsets();
+  // keep insets in sync when the layout changes
+  new ResizeObserver(updateInsets).observe(document.body);
+  applyHash(location.hash.slice(1), false);
+  setTimeout(() => $('#loading').classList.add('gone'), 250);
+  if (problems.errors.length) setTimeout(() => toast(`Architecture data has ${problems.errors.length} error${problems.errors.length > 1 ? 's' : ''} — open the console`), 600);
+  window.__arch = { hist, goBack, Engine, nav: () => nav, navigate, select: selectById, startFlow, FLOWS, NODE, INSIDE, problems };
+})();
+</script>
+</body>
+</html>

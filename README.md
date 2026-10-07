@@ -1,0 +1,42 @@
+# 3D Architecture Map
+
+A self-contained viewer for an interactive 3D map of a software system: people, apps, services, data stores, cloud and third-party services, delivery, and tooling. The result is one HTML file with no external scripts, fonts, or network calls. Send it as an attachment, drop it in a repo's `docs/` folder, or host it anywhere static.
+
+Licensed under the [MIT License](LICENSE).
+
+## What's in this folder
+
+| File | What it is |
+| --- | --- |
+| `template.html` | The complete viewer (engine and UI) with a small fictional example dataset. Copy it and replace the example. |
+| `check.js` | A dependency-free Node script that validates the data you wrote. |
+| `INSTRUCTIONS.md` | How to research a repository and fill in the map. |
+| `LICENSE` | MIT license. |
+
+## Quick start
+
+1. Copy `template.html` to where the map will live, for example `docs/architecture/<system>-architecture-3d.html`.
+2. Replace the example between `BEGIN ARCHITECTURE DATA` and `END ARCHITECTURE DATA`. Keep both marker lines as they are.
+3. Validate until there are no errors:
+
+```bash
+node check.js path/to/your-map.html
+```
+
+`check.js` needs Node 18 or newer and has no dependencies. Exit code 0 means no errors. Warnings can still print.
+
+4. Open the HTML file in a browser.
+
+The full workflow — research, data format, validation messages, and visual checks — is in [INSTRUCTIONS.md](INSTRUCTIONS.md).
+
+## What the viewer shows
+
+Everything on the page comes from the data region. You do not edit the engine or the UI.
+
+- **Overview.** A 3D city. Each district is a layer of the system. Each system is a block whose height encodes importance and whose color encodes its category.
+- **Inspect.** Click a block, connection, or district for a description, facts, tech, links, and the repository paths that support it.
+- **Dive in.** Systems with an inside view open into a smaller city, with ghost blocks of their neighbors still visible.
+- **Guided flows.** A numbered path through one scenario, such as a checkout or a deploy.
+- **Search, filters, and links.** Provider spotlight, layer and connection-type toggles, a back history, and shareable links of the form `map.html#<view>~<nodeId>`.
+
+The example dataset is fictional ("Acme Commerce"). Delete it and describe the real system. Do not put secrets, keys, account identifiers, or personal data in the map.
