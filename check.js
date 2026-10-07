@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Amir Zucker
+// See the LICENSE file in the repository root for the full license text.
 /* check.js — validates the ARCHITECTURE DATA region of a 3D architecture map HTML file.
    Usage:  node check.js path/to/map.html
    Exit code 0 = no errors (warnings may still be printed), 1 = errors found or file could not be parsed.

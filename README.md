@@ -11,7 +11,7 @@ Licensed under the [MIT License](LICENSE).
 | `template.html` | The complete viewer (engine and UI) with a small fictional example dataset. Copy it and replace the example. |
 | `check.js` | A dependency-free Node script that validates the data you wrote. |
 | `INSTRUCTIONS.md` | How to research a repository and fill in the map. |
-| `LICENSE` | MIT license. |
+| `LICENSE` | The MIT license text. |
 
 ## Quick start
 
@@ -40,3 +40,11 @@ Everything on the page comes from the data region. You do not edit the engine or
 - **Search, filters, and links.** Provider spotlight, layer and connection-type toggles, a back history, and shareable links of the form `map.html#<view>~<nodeId>`.
 
 The example dataset is fictional ("Acme Commerce"). Delete it and describe the real system. Do not put secrets, keys, account identifiers, or personal data in the map.
+
+## License
+
+Copyright (c) 2026 Amir Zucker. Released under the [MIT License](LICENSE) (SPDX identifier: `MIT`).
+
+The MIT License requires the copyright and permission notice to be kept in all copies or substantial portions of the software. The notice is embedded at the top of `template.html` (and a short SPDX header is at the top of `check.js`) so it travels with those files when you copy them without this folder. Leave it in place when you make a map from the template.
+
+The template is self-contained and bundles no third-party code, fonts, or assets, so there are no additional third-party license notices to carry along.
