@@ -1937,6 +1937,78 @@ view('api', 'Orders API', 'Routes on the left, domain modules and clients on the
   if (problems.errors.length) setTimeout(() => toast(`Architecture data has ${problems.errors.length} error${problems.errors.length > 1 ? 's' : ''} — open the console`), 600);
   window.__arch = { hist, goBack, Engine, nav: () => nav, navigate, select: selectById, startFlow, FLOWS, NODE, INSIDE, problems };
 })();
+/* ======================= BEGIN CHAT CORE (pure — no DOM, no network; tested by chat.test.js) =======================
+   Retrieval over the ARCHITECTURE DATA, prompt context assembly, answer parsing and the navigation
+   rules used by the chat panel below. Keep this region free of browser APIs so Node can evaluate it.
+   ==================================================================================================================== */
+const ChatCore = (() => {
+  const paras = d => (Array.isArray(d) ? d : d ? [d] : []);
+  const plain = s => String(s == null ? '' : s).replace(/\*\*([^*]+)\*\*/g, '$1').replace(/`([^`]+)`/g, '$1');
+  const clip = (s, n) => { s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s; };
+  const estimateTokens = s => Math.ceil(String(s == null ? '' : s).length / 3.6);
+
+  /* ---- documents ---- */
+  function buildDocs(M) {
+    const { META, CATS, PROVIDERS, KINDS, ZONES, NODES, EDGES, FLOWS, INSIDE } = M;
+    const docs = [], byId = new Map();
+    const add = d => { docs.push(d); byId.set(d.id, d); return d; };
+    const catLabel = c => (CATS && CATS[c] && CATS[c].label) || c || '';
+    const provLabel = p => (PROVIDERS && PROVIDERS[p] && PROVIDERS[p].label) || '';
+    const zoneName = (zones, id) => { const z = zones.find(q => q.id === id); return z ? z.name : ''; };
+    const nodeDoc = (n, view, zones, viewTitle) => {
+      const district = zoneName(zones, n.zone), facts = (n.facts || []).map(f => plain(f[0]) + ': ' + plain(f[1]));
+      const does = (n.does || []).map(plain), tech = (n.tech || []).map(plain), desc = paras(n.desc).map(plain);
+      const text = [n.name, n.tag, n.blurb, ...desc, ...does, ...facts, ...tech, ...(n.paths || []), n.notes, provLabel(n.prov), catLabel(n.cat), district, viewTitle].filter(Boolean).map(plain).join(' ');
+      return add({ id: n.id, kind: 'node', view, name: n.name, aliases: [n.tag, n.blurb].filter(Boolean).map(plain).join(' '), text, height: n.h || 0,
+        catLabel: catLabel(n.cat), provLabel: n.prov && n.prov !== 'own' ? provLabel(n.prov) : '', district, blurb: plain(n.blurb), desc, does, tech, facts, inside: !!(INSIDE && INSIDE[n.id]), conns: [], neigh: new Set() });
+    };
+    add({ id: 'about', kind: 'about', view: 'root', name: META.title, aliases: [META.tagline, META.brand].filter(Boolean).join(' '),
+      text: [META.title, META.tagline, ...paras(META.intro)].map(plain).join(' '), card: clip(`${META.title}: ${plain(META.tagline)} ${paras(META.intro).map(plain).join(' ')}`, 600) });
+    const zoneDoc = (z, view, nodes, viewTitle) => add({ id: z.id, kind: 'zone', view, name: z.name, aliases: plain(z.tag), text: [z.name, z.tag, ...paras(z.desc), catLabel(z.cat), viewTitle, 'district'].filter(Boolean).map(plain).join(' '),
+      desc: paras(z.desc).map(plain), members: nodes.filter(n => n.zone === z.id).map(n => n.name) });
+    ZONES.forEach(z => zoneDoc(z, 'root', NODES, ''));
+    NODES.forEach(n => nodeDoc(n, 'root', ZONES, ''));
+    for (const v of Object.values(INSIDE || {})) { v.zones.forEach(z => zoneDoc(z, v.id, v.nodes, v.title)); v.nodes.forEach(n => nodeDoc(n, v.id, v.zones, v.title)); }
+    const edgeDocs = (edges, view) => edges.forEach(e => {
+      const a = byId.get(e.a), b = byId.get(e.b); if (!a || !b) return;
+      const kind = (KINDS && KINDS[e.kind] && KINDS[e.kind].label) || e.kind;
+      const line = `${a.name} → ${b.name} (${kind}${e.label ? ', ' + plain(e.label) : ''})${e.d ? ': ' + clip(plain(e.d), 120) : ''}`;
+      if (a.kind === 'node') { a.conns.push(line); a.neigh.add(b.id); }
+      if (b.kind === 'node' && b !== a) { b.conns.push(line); b.neigh.add(a.id); }
+      add({ id: `edge:${e.a}>${e.b}`, kind: 'edge', view, name: `${a.name} → ${b.name}`, aliases: [e.label, kind].filter(Boolean).map(plain).join(' '),
+        text: [a.name, b.name, e.label, kind, e.d].filter(Boolean).map(plain).join(' '), ends: [e.a, e.b], card: line });
+    });
+    edgeDocs(EDGES, 'root');
+    for (const v of Object.values(INSIDE || {})) edgeDocs(v.edges, v.id);
+    FLOWS.forEach(f => {
+      const steps = f.steps.map((s, i) => { const a = byId.get(s[0]), b = byId.get(s[1]); return `${i + 1}. ${a ? a.name : s[0]} → ${b ? b.name : s[1]}: ${plain(s[3])}`; });
+      add({ id: f.id, kind: 'flow', view: 'root', name: f.name, aliases: plain(f.blurb), text: [f.name, f.blurb, ...steps, 'guided flow scenario walkthrough'].map(plain).join(' '), steps, blurb: plain(f.blurb) });
+    });
+    docs.forEach(d => { if (!d.card) d.card = makeCard(d); d.short = makeShort(d); });
+    return { docs, byId };
+  }
+  function makeCard(d) {
+    if (d.kind === 'node') {
+      let s = `${d.id} | ${d.name} | ${d.district} | ${d.catLabel}${d.provLabel ? ' / ' + d.provLabel : ''} | ${clip([d.blurb, ...d.desc].join(' '), 260)}`;
+      if (d.does.length) s += ' Does: ' + clip(d.does.join('; '), 160) + '.';
+      if (d.facts.length) s += ' ' + clip(d.facts.join('; '), 120) + '.';
+      if (d.tech.length) s += ' Tech: ' + d.tech.join(', ') + '.';
+      if (d.inside) s += ' Has an inside view.';
+      if (d.conns.length) s += ' Connections: ' + clip(d.conns.join('; '), 320);
+      return s;
+    }
+    if (d.kind === 'zone') return `${d.id} | ${d.name} (district) | ${clip(d.desc.join(' '), 200)} Contains: ${d.members.join(', ')}.`;
+    if (d.kind === 'flow') return `${d.id} | ${d.name} (guided flow) | ${d.blurb} Steps: ${clip(d.steps.join(' '), 420)}`;
+    return d.card || '';
+  }
+  function makeShort(d) {
+    if (d.kind === 'node') return `${d.id} | ${d.name} | ${d.district} | ${clip(d.blurb || d.desc[0] || '', 110)}`;
+    return clip(d.card, 160);
+  }
+
+  return { buildDocs, estimateTokens };
+})();
+/* ======================= END CHAT CORE ======================= */
 </script>
 </body>
 </html>
