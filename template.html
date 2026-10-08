@@ -167,6 +167,49 @@ code,.path{font-family:var(--mono);font-size:12px;background:rgba(122,167,255,.1
 #loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:20;background:var(--bg0);transition:opacity .6s;color:var(--muted);font-size:14px}
 #loading.gone{opacity:0;pointer-events:none}
 
+/* chat */
+#chatBtn{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:5;display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 16px 0 13px;border-radius:999px;font-size:13px;font-weight:600;color:var(--text);cursor:pointer;transition:transform .25s,opacity .25s,background .15s}
+#chatBtn:hover{border-color:var(--line2);background:rgba(16,26,48,.92)}
+#chatBtn svg{width:16px;height:16px;stroke:var(--accent);fill:none;stroke-width:1.8;stroke-linejoin:round}
+#stage.chat-open #chatBtn{opacity:0;pointer-events:none;transform:translate(-50%,20px)}
+#stage.chat-open #hint{opacity:0}
+#chat{position:absolute;left:50%;bottom:12px;width:50vw;min-width:440px;max-width:calc(100vw - 24px);height:33vh;min-height:260px;transform:translate(-50%,0);z-index:6;display:flex;flex-direction:column;overflow:hidden;transition:transform .3s cubic-bezier(.2,.8,.2,1),opacity .3s}
+#chat[hidden]{display:flex;opacity:0;pointer-events:none;transform:translate(-50%,calc(100% + 24px))}
+#chat header{display:flex;align-items:center;gap:10px;padding:9px 10px 9px 14px;border-bottom:1px solid var(--line);font-size:13px}
+#chat header b{font-weight:650;white-space:nowrap}
+#chat .tiers{display:flex;gap:4px;margin-left:2px}
+#chat .tiers .chip{padding:3px 9px;font-size:11.5px;white-space:nowrap}
+#chat .tiers .chip small{color:var(--dim);margin-left:4px;font-size:10.5px}
+#chat .tiers .chip.on small{color:inherit;opacity:.75}
+#chat .status{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--dim);white-space:nowrap}
+#chat .status i{width:8px;height:8px;border-radius:50%;background:var(--dim)}
+#chat .status.ready i{background:#4ade80;box-shadow:0 0 8px #4ade80}
+#chat .status.busy i{background:var(--accent2);animation:chatpulse 1s infinite}
+#chat .status.error i{background:#fb7185}
+@keyframes chatpulse{50%{opacity:.3}}
+#chat .progress{height:3px;background:rgba(255,255,255,.05);opacity:0;transition:opacity .2s}
+#chat .progress div{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .3s}
+#chat .msgs{flex:1;overflow:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin;scrollbar-color:rgba(148,170,210,.3) transparent}
+.msg{max-width:88%;padding:8px 12px;border-radius:12px;font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.msg.user{align-self:flex-end;background:rgba(122,167,255,.18);border:1px solid rgba(122,167,255,.35)}
+.msg.bot{align-self:flex-start;background:rgba(255,255,255,.05);border:1px solid var(--line);color:#dbe5f7}
+.msg.bot.note{color:var(--muted);font-size:12.5px}
+.msg.bot.err{border-color:rgba(251,113,133,.5);color:#fecdd3}
+.msg .cur::after{content:'▍';color:var(--accent);animation:chatpulse .8s infinite}
+.msg .act{display:inline-flex;align-items:center;gap:6px;margin:8px 6px 0 0;padding:6px 11px;border-radius:9px;border:1px solid rgba(94,234,212,.5);background:rgba(94,234,212,.12);color:#bffaf0;font-size:12.5px;font-weight:600;cursor:pointer}
+.msg .act:hover{background:rgba(94,234,212,.22)}
+.msg .act:disabled{opacity:.55;cursor:default}
+.msg .meta{display:block;margin-top:6px;font-size:11px;color:var(--dim);line-height:1.4}
+.sugg{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.sugg button{text-align:left;font-size:12.5px;padding:7px 11px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--muted);cursor:pointer}
+.sugg button:hover{color:var(--text);border-color:var(--line2)}
+#chat .input{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--line);align-items:flex-end;margin:0}
+#chatIn{flex:1;resize:none;min-height:36px;max-height:84px;padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--text);font:inherit;font-size:13px;line-height:1.45;outline:none}
+#chatIn:focus{border-color:var(--accent2);background:rgba(255,255,255,.08)}
+#chatIn:disabled{opacity:.55}
+#chatSend{padding:8px 14px}
+@media (max-width:900px){#chat{width:auto;left:12px;right:12px;min-width:0;transform:none;height:40vh}#chat[hidden]{transform:translateY(calc(100% + 24px))}#chatBtn span{display:none}#chatBtn{padding:0 11px}#stage.chat-open #chatBtn{transform:translate(-50%,20px)}}
+
 @media (max-width:1180px){#right{width:340px}#left{width:262px}}
 @media (max-width:900px){
 
@@ -224,6 +267,18 @@ code,.path{font-family:var(--mono);font-size:12px;background:rgba(122,167,255,.1
   <aside id="right" class="side glass empty"><div class="scroll" id="detail"></div></aside>
 
   <div id="hint" class="glass"><kbd>drag</kbd> orbit · <kbd>scroll</kbd> zoom · <kbd>click</kbd> inspect · <kbd>double-click</kbd> dive in · <kbd>Esc</kbd> back</div>
+  <button id="chatBtn" class="glass" title="Ask about this map (C)"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2-2.2-.8 2.2-.8z"/></svg><span>Ask about this map</span></button>
+  <section id="chat" class="glass" aria-label="Chat about this map" hidden>
+    <header>
+      <b>Map guide</b>
+      <div class="tiers" id="chatTiers"></div>
+      <span class="status" id="chatStatus"><i></i><span>not loaded</span></span>
+      <button class="ibtn" id="chatClose" title="Close (Esc)">✕</button>
+    </header>
+    <div class="progress" id="chatProgress"><div></div></div>
+    <div class="msgs" id="chatMsgs" aria-live="polite"></div>
+    <form class="input" id="chatForm"><textarea id="chatIn" rows="1" placeholder="Ask about a system, district, connection or flow…" autocomplete="off"></textarea><button class="btn primary" type="submit" id="chatSend">Send</button></form>
+  </section>
   <div id="tip"></div>
   <div id="toast"></div>
   <div id="loading">Building the map…</div>
@@ -2134,6 +2189,65 @@ const ChatCore = (() => {
   return { buildDocs, rank, buildContext, parseAnswer, resolveTarget, isAffirmative, factsAnswer, suggestQuestions, buildMessages, estimateTokens, terms, SYSTEM_PROMPT };
 })();
 /* ======================= END CHAT CORE ======================= */
+/* =====================================================================
+   CHAT — ask questions about the map with a model running on the local GPU.
+   Pure logic lives in CHAT CORE above. This module is the panel, the WebLLM
+   runtime and the navigation handshake. Nothing external loads until a model
+   is requested.
+   ===================================================================== */
+(() => {
+  'use strict';
+  const A = window.__arch; if (!A) return;
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const md = s => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+  const DEFAULTS = {
+    runtimeUrl: 'https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.85/+esm',
+    models: [
+      { key: 'better', label: 'Better', sub: 'Qwen3 1.7B', id: 'Qwen3-1.7B-q4f16_1-MLC', sizeMB: 970 },
+      { key: 'fast', label: 'Fast', sub: 'Qwen3 0.6B', id: 'Qwen3-0.6B-q4f16_1-MLC', sizeMB: 340 },
+    ],
+    maxTokens: 160, contextBudget: 450, latencyLimitMs: 5000,
+  };
+  const CFG = Object.assign({}, DEFAULTS, (typeof META !== 'undefined' && META.chat) || {});
+  const { docs, byId } = ChatCore.buildDocs({ META, CATS, PROVIDERS, KINDS, ZONES, NODES, EDGES, FLOWS, INSIDE });
+  const LS = {
+    get(k, d) { try { const v = localStorage.getItem('arch.chat.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem('arch.chat.' + k, JSON.stringify(v)); } catch (e) { /* private mode */ } },
+  };
+  const S = { open: false, tierKey: LS.get('tier', CFG.models[0].key), history: [], pending: null, prevTarget: null, busy: false, factsMode: false, answers: 0 };
+  const tier = () => CFG.models.find(m => m.key === S.tierKey) || CFG.models[0];
+  const stage = $('#stage'), panel = $('#chat'), btn = $('#chatBtn'), msgs = $('#chatMsgs'), input = $('#chatIn'), form = $('#chatForm'), statusEl = $('#chatStatus'), prog = $('#chatProgress');
+  let lastTimings = null;
+
+  /* ---- panel ---- */
+  function setStatus(kind, text) { statusEl.className = 'status ' + kind; statusEl.lastElementChild.textContent = text; }
+  function setProgress(p) { prog.style.opacity = p == null ? 0 : 1; prog.firstElementChild.style.width = p == null ? '0' : Math.round(p * 100) + '%'; }
+  function scrollDown() { msgs.scrollTop = msgs.scrollHeight; }
+  function add(role, html, cls) { const el = document.createElement('div'); el.className = 'msg ' + role + (cls ? ' ' + cls : ''); el.innerHTML = html; msgs.appendChild(el); scrollDown(); return el; }
+  function inset() { A.setBottomInset(S.open ? Math.round(panel.getBoundingClientRect().height) + 20 : 0); }
+  function setOpen(o) {
+    S.open = !!o; panel.hidden = !S.open; stage.classList.toggle('chat-open', S.open); LS.set('open', S.open); inset();
+    if (S.open) { if (!msgs.children.length) intro(); setTimeout(() => input.focus(), 60); }
+  }
+  function autosize() { input.style.height = 'auto'; input.style.height = Math.min(84, input.scrollHeight) + 'px'; }
+  function intro() { add('bot', 'Ask me about any system, district, connection or flow on this map.', 'note'); }
+  function ask(q) { q = String(q || '').trim(); if (!q) return; input.value = ''; autosize(); add('user', esc(q)); add('bot', 'Model wiring arrives in the next task.', 'note'); }
+
+  btn.onclick = () => setOpen(true);
+  $('#chatClose').onclick = () => setOpen(false);
+  form.onsubmit = ev => { ev.preventDefault(); ask(input.value); };
+  input.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); ask(input.value); }
+    else if (ev.key === 'Escape') { ev.preventDefault(); setOpen(false); }
+  });
+  input.addEventListener('input', autosize);
+  addEventListener('keydown', ev => { if (ev.target && ev.target.closest && ev.target.closest('input,textarea,#chat')) return; if (ev.key === 'c' || ev.key === 'C') setOpen(!S.open); });
+  new ResizeObserver(inset).observe(panel);
+  setStatus('', 'not loaded'); setProgress(null);
+  if (LS.get('open', false)) setOpen(true);
+  window.__arch.chat = { ask, open: setOpen, docs, state: S, core: ChatCore, timings: () => lastTimings, rank: q => ChatCore.rank(docs, q, {}) };
+})();
 </script>
 </body>
 </html>
