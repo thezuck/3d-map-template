@@ -59,3 +59,33 @@ test('buildDocs: flow and district cards', () => {
   assert.match(byId.get('z_data').card, /^z_data \| Data & messaging \(district\)/);
   assert.match(byId.get('z_data').card, /PostgreSQL/);
 });
+
+const top = (q, state) => ChatCore.rank(docs, q, state || {}).map(r => r.doc.id);
+
+test('rank: a named system comes first, by name or by id', () => {
+  assert.equal(top('What does the Orders API do, and what talks to it?')[0], 'api');
+  assert.equal(top('tell me about the worker')[0], 'worker');
+  assert.equal(top('what is postgres used for')[0], 'postgres');
+  assert.equal(top('explain api')[0], 'api');
+});
+
+test('rank: paraphrases reach the right entity through descriptions and labels', () => {
+  assert.ok(top('where do card payments happen').slice(0, 3).includes('stripe'));
+  assert.ok(top('how does a change get deployed to production').slice(0, 3).includes('deploy'));
+  assert.ok(top('which district holds the databases and queues').slice(0, 3).includes('z_data'));
+});
+
+test('rank: connection labels match and point at their endpoints', () => {
+  const ids = top('who handles webhooks');
+  assert.ok(ids.some(id => id.startsWith('edge:stripe>api') || id === 'api.r_hooks' || id === 'stripe'));
+});
+
+test('rank: state boosts the previous target so follow-ups resolve', () => {
+  assert.equal(top('and what about its database?', { prevTarget: 'api' }).length > 0, true);
+  assert.equal(top('and its jobs?', { prevTarget: 'worker' })[0], 'worker');
+  assert.equal(top('what is this?', { selected: 'redis' })[0], 'redis');
+});
+
+test('rank: nothing matches and no previous target gives an empty list', () => {
+  assert.equal(top('zzzz qqqq').length, 0);
+});

@@ -1947,6 +1947,13 @@ const ChatCore = (() => {
   const clip = (s, n) => { s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s; };
   const estimateTokens = s => Math.ceil(String(s == null ? '' : s).length / 3.6);
 
+  /* ---- tokens ---- */
+  const STOP = new Set('a an the and or of to in on for with by at from is are was were be been being do does did it its this that these those what which who whom how where when why tell me about show explain describe please can could you i we my our your into than then there their they them any all some more most much very also just like get give us used use'.split(' '));
+  const words = s => String(s == null ? '' : s).toLowerCase().replace(/[`*_|]/g, ' ').split(/[^a-z0-9+#.]+/).map(w => w.replace(/^\.+|\.+$/g, '')).filter(Boolean);
+  const stem = w => (w.length > 4 && /ies$/.test(w) ? w.slice(0, -3) + 'y' : w.length > 3 && /s$/.test(w) && !/ss$/.test(w) ? w.slice(0, -1) : w);
+  const terms = s => words(s).filter(w => !STOP.has(w)).map(stem).filter(w => !STOP.has(w));
+  const KIND_HINTS = { zone: new Set(['district', 'area', 'layer', 'group', 'section']), flow: new Set(['flow', 'scenario', 'walkthrough', 'journey', 'step', 'sequence']) };
+
   /* ---- documents ---- */
   function buildDocs(M) {
     const { META, CATS, PROVIDERS, KINDS, ZONES, NODES, EDGES, FLOWS, INSIDE } = M;
@@ -1964,8 +1971,11 @@ const ChatCore = (() => {
     };
     add({ id: 'about', kind: 'about', view: 'root', name: META.title, aliases: [META.tagline, META.brand].filter(Boolean).join(' '),
       text: [META.title, META.tagline, ...paras(META.intro)].map(plain).join(' '), card: clip(`${META.title}: ${plain(META.tagline)} ${paras(META.intro).map(plain).join(' ')}`, 600) });
-    const zoneDoc = (z, view, nodes, viewTitle) => add({ id: z.id, kind: 'zone', view, name: z.name, aliases: plain(z.tag), text: [z.name, z.tag, ...paras(z.desc), catLabel(z.cat), viewTitle, 'district'].filter(Boolean).map(plain).join(' '),
-      desc: paras(z.desc).map(plain), members: nodes.filter(n => n.zone === z.id).map(n => n.name) });
+    const zoneDoc = (z, view, nodes, viewTitle) => {
+      const mine = nodes.filter(n => n.zone === z.id);
+      return add({ id: z.id, kind: 'zone', view, name: z.name, aliases: plain(z.tag), text: [z.name, z.tag, ...paras(z.desc), catLabel(z.cat), viewTitle, 'district', ...mine.map(n => [n.name, n.tag, n.blurb].join(' '))].filter(Boolean).map(plain).join(' '),
+        desc: paras(z.desc).map(plain), members: mine.map(n => n.name) });
+    };
     ZONES.forEach(z => zoneDoc(z, 'root', NODES, ''));
     NODES.forEach(n => nodeDoc(n, 'root', ZONES, ''));
     for (const v of Object.values(INSIDE || {})) { v.zones.forEach(z => zoneDoc(z, v.id, v.nodes, v.title)); v.nodes.forEach(n => nodeDoc(n, v.id, v.zones, v.title)); }
@@ -2006,7 +2016,36 @@ const ChatCore = (() => {
     return clip(d.card, 160);
   }
 
-  return { buildDocs, estimateTokens };
+  /* ---- ranking ---- */
+  function rank(docs, question, state) {
+    state = state || {};
+    const q = String(question == null ? '' : question).toLowerCase(), qt = terms(question);
+    const scored = [];
+    for (const d of docs) {
+      if (!d._t) d._t = { name: new Set(terms(d.name)), alias: new Set(terms(d.aliases)), text: new Set(terms(d.text)) };
+      let s = 0;
+      for (const w of qt) { if (d._t.name.has(w)) s += 5; else if (d._t.alias.has(w)) s += 3; else if (d._t.text.has(w)) s += 1; }
+      const nm = d.name.toLowerCase();
+      if (nm.length > 2 && q.includes(nm)) s += 8;
+      if (d.kind !== 'about' && d.kind !== 'edge' && q.includes(d.id.toLowerCase())) s += 6;
+      if (s === 0) continue;
+      if (KIND_HINTS[d.kind] && qt.some(w => KIND_HINTS[d.kind].has(w))) s += 3;
+      if (state.selected === d.id) s += 3;
+      if (state.prevTarget === d.id) s += 4;
+      if (state.view && state.view !== 'root' && d.view === state.view) s += 1;
+      scored.push({ doc: d, score: s });
+    }
+    if (!scored.length) {
+      const prev = state.prevTarget && docs.find(d => d.id === state.prevTarget);
+      if (prev) scored.push({ doc: prev, score: 1 });
+      const sel = state.selected && state.selected !== state.prevTarget && docs.find(d => d.id === state.selected);
+      if (sel) scored.push({ doc: sel, score: 1 });
+    }
+    scored.sort((a, b) => b.score - a.score || (a.doc.kind === 'edge') - (b.doc.kind === 'edge') || a.doc.name.localeCompare(b.doc.name));
+    return scored;
+  }
+
+  return { buildDocs, rank, estimateTokens, terms };
 })();
 /* ======================= END CHAT CORE ======================= */
 </script>
