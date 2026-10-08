@@ -2045,7 +2045,35 @@ const ChatCore = (() => {
     return scored;
   }
 
-  return { buildDocs, rank, estimateTokens, terms };
+  /* ---- prompt context ---- */
+  function buildContext(ranked, byId, budget) {
+    budget = budget || 450;
+    const lines = [], used = new Set(), candidates = [];
+    let tokens = 0;
+    const push = (d, card) => {
+      if (used.has(d.id)) return false;
+      const t = estimateTokens(card);
+      if (lines.length && tokens + t > budget) return false;
+      used.add(d.id); lines.push(card); tokens += t; return true;
+    };
+    const about = byId.get('about'); if (about) push(about, about.card);
+    const navigable = d => d.kind === 'node' || d.kind === 'zone' || d.kind === 'flow';
+    const hits = ranked.filter(x => x.doc.kind !== 'about');
+    const floor = hits.length ? Math.max(2, hits[0].score * .25) : 0; // weak hits give way to the top hit's neighbours
+    for (const r of hits.filter(x => x.score >= floor).slice(0, 6)) {
+      const d = r.doc;
+      if (d.kind === 'edge') { // a connection hit: its endpoints join as short cards (the top hit's own card already lists its connections)
+        for (const id of d.ends) { const n = byId.get(id); if (n && navigable(n) && push(n, n.short)) candidates.push({ doc: n, score: r.score }); }
+        continue;
+      }
+      if (navigable(d) && push(d, d.card)) candidates.push({ doc: d, score: r.score });
+    }
+    const topDoc = candidates[0] && candidates[0].doc;
+    if (topDoc && topDoc.kind === 'node') for (const id of topDoc.neigh) { const n = byId.get(id); if (n) push(n, n.short); }
+    return { context: lines.join('\n'), candidates, tokens };
+  }
+
+  return { buildDocs, rank, buildContext, estimateTokens, terms };
 })();
 /* ======================= END CHAT CORE ======================= */
 </script>

@@ -89,3 +89,36 @@ test('rank: state boosts the previous target so follow-ups resolve', () => {
 test('rank: nothing matches and no previous target gives an empty list', () => {
   assert.equal(top('zzzz qqqq').length, 0);
 });
+
+test('buildContext: about card first, top documents next, connection hits become their endpoints, budget respected', () => {
+  const ranked = ChatCore.rank(docs, 'What does the Orders API do, and what talks to it?', {});
+  const ctx = ChatCore.buildContext(ranked, byId, 450);
+  const lines = ctx.context.split('\n');
+  assert.match(lines[0], /^Acme Commerce:/);
+  assert.match(lines[1], /^api \| Orders API/);
+  assert.ok(ctx.tokens <= 450 + 120, 'one card may overshoot, never more');
+  assert.equal(ctx.candidates[0].doc.id, 'api');
+  assert.ok(ctx.candidates.every(c => c.doc.kind !== 'edge'));
+  assert.ok(ctx.candidates.every(c => typeof c.score === 'number'));
+});
+
+test('buildContext: the top hit\'s neighbours are added as short cards while the budget allows', () => {
+  const ranked = ChatCore.rank(docs, 'tell me about the worker', {});
+  const ctx = ChatCore.buildContext(ranked, byId, 450);
+  assert.match(ctx.context, /\nworker \| Worker/);
+  assert.match(ctx.context, /\nredis \| Redis/);
+  assert.match(ctx.context, /\nemail \| Email provider/);
+});
+
+test('buildContext: a connection hit contributes its endpoints as candidates', () => {
+  const ranked = ChatCore.rank(docs, 'who handles webhooks', {});
+  const ctx = ChatCore.buildContext(ranked, byId, 450);
+  const ids = ctx.candidates.map(c => c.doc.id);
+  assert.ok(ids.includes('stripe') || ids.includes('api') || ids.includes('api.r_hooks'));
+});
+
+test('buildContext: empty ranking still returns the about card and no candidates', () => {
+  const ctx = ChatCore.buildContext([], byId, 450);
+  assert.match(ctx.context, /^Acme Commerce:/);
+  assert.equal(ctx.candidates.length, 0);
+});
