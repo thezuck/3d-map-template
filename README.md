@@ -44,7 +44,7 @@ The example dataset is fictional ("Acme Commerce"). Delete it and describe the r
 
 ## Chat about the map
 
-The bottom-centre button opens a chat that answers questions about the map's own data and offers to take you to the system, district or flow it describes. It runs a small language model on your GPU inside the browser through [WebLLM](https://github.com/mlc-ai/web-llm); nothing is sent anywhere.
+The bottom-centre button opens a chat that answers questions about the map's own data. Every system, district or flow an answer mentions is a button that flies the map there. It runs a small language model on your GPU inside the browser through [WebLLM](https://github.com/mlc-ai/web-llm); nothing is sent anywhere.
 
 - Requirements: WebGPU with `shader-f16` (Chrome, Edge, or Safari 26 on Apple silicon). Without it the chat still answers from the map data in a reduced "facts mode".
 - Download: about 970 MB once for the default model (Qwen3 1.7B) or about 340 MB for the Fast tier (Qwen3 0.6B). The browser caches the weights; later visits load in a few seconds. Nothing downloads until you click **Load model** or ask a question.

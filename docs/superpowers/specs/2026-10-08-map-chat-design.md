@@ -105,8 +105,10 @@ means defaults.
   arrows, slash) are ignored.
 - **First use.** Before any download the panel shows: approximate size of the selected model, that
   it runs on the local GPU, that questions never leave the browser, and a "Load model" button.
-  Progress replaces the notice during download; the input unlocks when the engine is ready. Later
-  visits load from cache in a few seconds behind the same progress strip.
+  While the model loads, an overlay covers the conversation with a progress ring, the percentage,
+  a title ("Downloading Qwen3 1.7B", "Loading Qwen3 1.7B from cache", "Preparing the GPU"), the
+  megabytes fetched out of the total, and a line saying the question will be answered when the
+  model is ready. The thin progress strip under the header mirrors it.
 - **Empty state.** Three suggested questions derived from the data: the tallest node, the first
   flow, one district.
 - **Persistence.** Chosen model and panel open state in localStorage. Conversation history in
@@ -167,9 +169,13 @@ each assistant message and exposed on `window.__arch.chat` for debugging.
 - Navigator accepts the id only if it is among that question's candidates. An invented id is
   ignored. If the model said `none` or invented an id, but the question clearly named one candidate
   (top score at least twice the runner-up), that candidate becomes the offer. Otherwise no offer.
-- An accepted offer renders as the action chip plus the line "Want me to take you there?".
-- The chip calls the app's `navigate(view, id)` for nodes and inside parts, `focusZone(id)` for
+- Every system, district or flow the answer mentions by name becomes an inline button in the text (one per entity, first mention). The main subject, when the model or retrieval named one, is emphasised and also answers to a "yes" reply; if the text never mentions it, a trailing "Go to <name>" button is added. (Revised 2026-10-08 from the earlier single "Take me to" chip, after review on a generated map.)
+- Each button calls the app's `navigate(view, id)` for nodes and inside parts, `focusZone(id)` for
   districts, `startFlow(flow)` for flows. The chat stays open and the camera flies.
+- Name matching: full names always; ids containing a dot or underscore; one distinctive capitalised
+  word of a multi-word overview name when no other overview name uses it ("Nginx" for "Nginx gateway").
+  A one-word inside part ("Traces", "Health") only matches when written exactly as named, unless its
+  view is open, so ordinary words in prose do not become links.
 - If the next user message is a short affirmative (`yes`, `y`, `yeah`, `yep`, `sure`, `ok`, `okay`,
   `please`, `go`, `do it`, `take me`, `take me there`, case-insensitive, with optional punctuation)
   while an offer is pending, Navigator performs it without calling the model and the assistant

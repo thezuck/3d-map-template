@@ -6,7 +6,8 @@
 'use strict';
 const test = require('node:test'), assert = require('node:assert/strict');
 const fs = require('fs'), vm = require('vm'), path = require('path');
-const html = fs.readFileSync(path.join(__dirname, 'template.html'), 'utf8');
+const FILE = process.env.MAP_HTML || 'template.html'; // another map built from the template can be tested with MAP_HTML=path
+const html = fs.readFileSync(path.resolve(__dirname, FILE), 'utf8');
 
 function region(beginRe, endRe, label) {
   const a = html.search(beginRe), b = html.search(endRe);
@@ -16,7 +17,7 @@ function region(beginRe, endRe, label) {
 const src = region(/\/\* =+ BEGIN DATA DSL/, /\/\* =+ END DATA DSL/, 'DATA DSL')
   + region(/\/\* =+ BEGIN ARCHITECTURE DATA/, /\/\* =+ END ARCHITECTURE DATA/, 'ARCHITECTURE DATA')
   + region(/\/\* =+ BEGIN CHAT CORE/, /\/\* =+ END CHAT CORE/, 'CHAT CORE');
-const M = vm.runInNewContext(src + '\n;({ META, PROVIDERS, CATS, KINDS, ZONES, NODES, EDGES, FLOWS, INSIDE, ChatCore })', {}, { filename: 'template.html' });
+const M = vm.runInNewContext(src + '\n;({ META, PROVIDERS, CATS, KINDS, ZONES, NODES, EDGES, FLOWS, INSIDE, ChatCore })', {}, { filename: FILE });
 const { ChatCore } = M;
 const { docs, byId } = ChatCore.buildDocs(M);
 
@@ -196,4 +197,45 @@ test('buildMessages: system prompt with context, trimmed history, question with 
   assert.equal(msgs.length, 1 + 6 + 1);
   assert.equal(msgs[1].content, 'q2');
   assert.equal(msgs[msgs.length - 1].content, 'What is Redis? /no_think');
+});
+
+test('linkEntities: every mentioned system becomes one link segment, first mention only, case-insensitive', () => {
+  const segs = ChatCore.linkEntities('The Orders API talks to PostgreSQL and redis. Redis also backs the queue.', docs, {});
+  const ents = segs.filter(s => s.doc).map(s => s.doc.id);
+  assert.deepEqual([...ents], ['api', 'postgres', 'redis']);
+  assert.equal(segs.map(s => s.text != null ? s.text : '[' + s.doc.id + ']').join(''), 'The [api] talks to [postgres] and [redis]. Redis also backs the queue.');
+  assert.equal(segs.find(s => s.doc && s.doc.id === 'redis').label, 'redis', 'the label keeps the text as written');
+});
+
+test('linkEntities: inside parts, districts and flows link too; ids with a dot are recognised', () => {
+  const segs = ChatCore.linkEntities('Webhooks live in api.r_hooks, under Data & messaging; see A shopper checks out.', docs, {});
+  const ids = segs.filter(s => s.doc).map(s => s.doc.id);
+  assert.ok(ids.includes('api.r_hooks'));
+  assert.ok(ids.includes('z_data'));
+  assert.ok(ids.includes('checkout'));
+  assert.equal(ids.filter(i => i === 'api.r_hooks').length, 1, 'name and id of the same part link once');
+});
+
+test('linkEntities: a distinctive word of a multi-word name links, generic words do not', () => {
+  const ids = s => ChatCore.linkEntities(s, docs, {}).filter(x => x.doc).map(x => x.doc.id);
+  assert.deepEqual([...ids('Payments go through Stripe; the Kubernetes cluster runs the pods.')], ['api.payments', 'stripe', 'k8s']);
+  assert.deepEqual([...ids('The api service and the backend talk over http.')], []);
+});
+
+test('linkEntities: a name shared by two docs prefers the current view, then the overview', () => {
+  const a = { id: 'x.p', kind: 'node', view: 'x', name: 'Projects' }, b = { id: 'y.p', kind: 'node', view: 'y', name: 'Projects' }, c = { id: 'root_p', kind: 'node', view: 'root', name: 'Projects' };
+  assert.equal(ChatCore.linkEntities('Open Projects.', [a, b], { view: 'y' }).find(s => s.doc).doc.id, 'y.p');
+  assert.equal(ChatCore.linkEntities('Open Projects.', [a, b, c], { view: 'q' }).find(s => s.doc).doc.id, 'root_p');
+});
+
+test('linkEntities: text without entities is one plain segment', () => {
+  const segs = ChatCore.linkEntities('Nothing on the map covers that.', docs, {});
+  assert.equal(segs.length, 1); assert.equal(segs[0].text, 'Nothing on the map covers that.');
+});
+
+test('linkEntities: a one-word inside part only links when written as named, unless its view is open', () => {
+  const ids = (s, st) => ChatCore.linkEntities(s, docs, st).filter(x => x.doc).map(x => x.doc.id);
+  assert.deepEqual([...ids('Kubernetes probes health every few seconds.', { view: 'root' })], ['k8s']);
+  assert.deepEqual([...ids('Kubernetes probes the Health route.', { view: 'root' })], ['k8s', 'api.r_health']);
+  assert.deepEqual([...ids('the health route answers probes', { view: 'api' })], ['api.r_health']);
 });

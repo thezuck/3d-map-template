@@ -173,7 +173,7 @@ code,.path{font-family:var(--mono);font-size:12px;background:rgba(122,167,255,.1
 #chatBtn svg{width:16px;height:16px;stroke:var(--accent);fill:none;stroke-width:1.8;stroke-linejoin:round}
 #stage.chat-open #chatBtn{opacity:0;pointer-events:none;transform:translate(-50%,20px)}
 #stage.chat-open #hint{opacity:0}
-#chat{position:absolute;left:50%;bottom:12px;width:50vw;min-width:440px;max-width:calc(100vw - 24px);height:33vh;min-height:260px;transform:translate(-50%,0);z-index:6;display:flex;flex-direction:column;overflow:hidden;transition:transform .3s cubic-bezier(.2,.8,.2,1),opacity .3s}
+#chat{color-scheme:dark;position:absolute;left:50%;bottom:12px;width:50vw;min-width:440px;max-width:calc(100vw - 24px);height:33vh;min-height:260px;transform:translate(-50%,0);z-index:6;display:flex;flex-direction:column;overflow:hidden;transition:transform .3s cubic-bezier(.2,.8,.2,1),opacity .3s}
 #chat[hidden]{display:flex;opacity:0;pointer-events:none;transform:translate(-50%,calc(100% + 24px))}
 #chat header{display:flex;align-items:center;gap:10px;padding:9px 10px 9px 14px;border-bottom:1px solid var(--line);font-size:13px}
 #chat header b{font-weight:650;white-space:nowrap}
@@ -204,10 +204,31 @@ code,.path{font-family:var(--mono);font-size:12px;background:rgba(122,167,255,.1
 .sugg button{text-align:left;font-size:12.5px;padding:7px 11px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--muted);cursor:pointer}
 .sugg button:hover{color:var(--text);border-color:var(--line2)}
 #chat .input{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--line);align-items:flex-end;margin:0}
-#chatIn{flex:1;resize:none;min-height:36px;max-height:84px;padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--text);font:inherit;font-size:13px;line-height:1.45;outline:none}
+#chatIn{flex:1;resize:none;overflow-y:hidden;scrollbar-width:thin;scrollbar-color:rgba(148,170,210,.35) transparent;min-height:36px;max-height:84px;padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--text);font:inherit;font-size:13px;line-height:1.45;outline:none}
 #chatIn:focus{border-color:var(--accent2);background:rgba(255,255,255,.08)}
 #chatIn:disabled{opacity:.55}
+#chatIn::-webkit-scrollbar{width:6px}
+#chatIn::-webkit-scrollbar-thumb{background:rgba(148,170,210,.3);border-radius:6px}
 #chatSend{padding:8px 14px}
+.msg .ent{display:inline;font:inherit;line-height:inherit;padding:0 5px;margin:0 1px;border-radius:6px;border:1px solid rgba(94,234,212,.35);background:rgba(94,234,212,.10);color:#bffaf0;cursor:pointer;text-decoration:none;transition:background .15s,border-color .15s}
+.msg .ent:hover{background:rgba(94,234,212,.24);border-color:rgba(94,234,212,.8)}
+.msg .ent::after{content:'↗';font-size:.78em;margin-left:3px;opacity:.7}
+.msg .ent.primary{background:rgba(94,234,212,.2);border-color:rgba(94,234,212,.7)}
+.msg .ent.gone{opacity:.6}
+.msg .trail{display:block;margin-top:8px}
+#chat .overlay{position:absolute;left:0;right:0;bottom:0;top:44px;z-index:3;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-align:center;padding:16px 24px;background:radial-gradient(420px 220px at 50% 40%,rgba(94,234,212,.09),rgba(12,19,36,0) 70%),rgba(10,16,30,.86);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:opacity .25s}
+#chat .overlay[hidden]{display:none}
+#chat .overlay .ringwrap{position:relative;width:72px;height:72px;margin-bottom:6px}
+#chat .overlay .ring{width:72px;height:72px;transform:rotate(-90deg);display:block}
+#chat .overlay .ring circle{fill:none;stroke:rgba(148,170,210,.18);stroke-width:4}
+#chat .overlay .ring .arc{stroke:var(--accent);stroke-linecap:round;stroke-dasharray:194.8;stroke-dashoffset:194.8;transition:stroke-dashoffset .35s}
+#chat .overlay.indeterminate .ring .arc{stroke-dasharray:48 146.8;stroke-dashoffset:0;animation:chatspin 1.1s linear infinite}
+@keyframes chatspin{to{stroke-dashoffset:-194.8}}
+#chat .overlay .pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:650;color:#bffaf0;font-variant-numeric:tabular-nums}
+#chat .overlay.indeterminate .pct{display:none}
+#chat .overlay h3{margin:4px 0 0;font-size:14px;font-weight:650;letter-spacing:.01em}
+#chat .overlay p{margin:0;font-size:12px;color:var(--muted);line-height:1.45}
+#chat .overlay .hint{color:var(--dim);font-size:11.5px;margin-top:6px;max-width:380px}
 @media (max-width:900px){#chat{width:auto;left:12px;right:12px;min-width:0;transform:none;height:40vh}#chat[hidden]{transform:translateY(calc(100% + 24px))}#chatBtn span{display:none}#chatBtn{padding:0 11px}#stage.chat-open #chatBtn{transform:translate(-50%,20px)}}
 
 @media (max-width:1180px){#right{width:340px}#left{width:262px}}
@@ -277,6 +298,12 @@ code,.path{font-family:var(--mono);font-size:12px;background:rgba(122,167,255,.1
     </header>
     <div class="progress" id="chatProgress"><div></div></div>
     <div class="msgs" id="chatMsgs" aria-live="polite"></div>
+    <div class="overlay" id="chatOverlay" hidden role="status">
+      <div class="ringwrap"><svg class="ring" viewBox="0 0 72 72"><circle cx="36" cy="36" r="31"/><circle class="arc" cx="36" cy="36" r="31"/></svg><div class="pct">0%</div></div>
+      <h3></h3>
+      <p class="detail"></p>
+      <p class="hint"></p>
+    </div>
     <form class="input" id="chatForm"><textarea id="chatIn" rows="1" placeholder="Ask about a system, district, connection or flow…" autocomplete="off"></textarea><button class="btn primary" type="submit" id="chatSend">Send</button></form>
   </section>
   <div id="tip"></div>
@@ -2164,6 +2191,51 @@ const ChatCore = (() => {
     if (d.kind === 'flow') return `**${d.name}** is a guided flow${d.blurb ? ': ' + d.blurb : '.'} ${d.steps.length} steps: ${d.steps.slice(0, 3).join(' ')}${d.steps.length > 3 ? ' …' : ''}`;
     return d.card;
   }
+  /* ---- inline entity links: every mentioned system, district or flow in an answer becomes a link ---- */
+  const GENERIC = new Set(['service', 'services', 'backend', 'frontend', 'api', 'apis', 'ui', 'app', 'apps', 'data', 'cloud', 'web', 'server', 'client', 'clients', 'store', 'storage', 'queue', 'provider', 'manager', 'console', 'site', 'system', 'platform', 'runner', 'runners', 'gateway', 'collector', 'report', 'cluster', 'jobs', 'routes', 'module', 'local', 'health', 'old', 'new', 'main', 'core', 'edge', 'people', 'customers', 'legacy']);
+  const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  function linkEntities(text, docs, state) {
+    state = state || {};
+    text = String(text == null ? '' : text);
+    const nav = docs.filter(d => d.kind === 'node' || d.kind === 'zone' || d.kind === 'flow');
+    const split = n => n.split(/[\s/&·,+()-]+/).filter(Boolean);
+    // alias -> [{ doc, cs }]. Full names always (cs = case-sensitive: a one-word inside part seen from another
+    // view, since names like "Traces" or "Health" are also ordinary words); the id when it has a dot or
+    // underscore; one distinctive capitalised word of a multi-word overview name when no other overview name uses it.
+    const aliases = new Map();
+    const put = (alias, doc, cs) => { alias = alias.toLowerCase(); if (alias.length < 3) return; const arr = aliases.get(alias) || []; if (!arr.some(e => e.doc === doc)) arr.push({ doc, cs: !!cs }); aliases.set(alias, arr); };
+    const owners = new Map();
+    for (const d of nav) {
+      const words = split(d.name), inside = d.view !== 'root';
+      put(d.name, d, inside && d.view !== state.view && words.length === 1);
+      if (/[._]/.test(d.id)) put(d.id, d, false);
+      if (!inside) for (const w of words) { const k = w.toLowerCase(); if (k.length >= 4) { const o = owners.get(k) || new Set(); o.add(d.id); owners.set(k, o); } }
+    }
+    for (const d of nav) {
+      if (d.view !== 'root') continue;
+      const words = split(d.name); if (words.length < 2) continue;
+      for (const w of words) { const k = w.toLowerCase(); if (k.length >= 4 && /^[A-Z0-9]/.test(w) && !GENERIC.has(k) && (owners.get(k) || new Set()).size === 1 && !aliases.has(k)) put(k, d, false); }
+    }
+    if (!aliases.size) return [{ text }];
+    const keys = [...aliases.keys()].sort((a, b) => b.length - a.length);
+    const re = new RegExp('(?<![\\w.])(' + keys.map(escRe).join('|') + ')(?!\\w|\\.\\w)', 'gi'); // a dotted id must not match in parts; a sentence-ending dot is fine
+    const pick = (arr, hit) => {
+      const ok = arr.filter(e => !e.cs || e.doc.name === hit || e.doc.id === hit).map(e => e.doc);
+      return ok.length <= 1 ? ok[0] : ok.find(d => d.view === state.view) || ok.find(d => d.view === 'root') || ok[0];
+    };
+    const out = [], seen = new Set();
+    let last = 0, m;
+    while ((m = re.exec(text))) {
+      const doc = pick(aliases.get(m[1].toLowerCase()), m[1]);
+      if (!doc || seen.has(doc.id)) continue;
+      seen.add(doc.id);
+      if (m.index > last) out.push({ text: text.slice(last, m.index) });
+      out.push({ doc, label: m[1] });
+      last = m.index + m[1].length;
+    }
+    if (last < text.length) out.push({ text: text.slice(last) });
+    return out.length ? out : [{ text }];
+  }
   function suggestQuestions(docs) {
     const nodes = docs.filter(d => d.kind === 'node' && d.view === 'root').sort((a, b) => b.height - a.height);
     const flow = docs.find(d => d.kind === 'flow'), zone = docs.find(d => d.kind === 'zone' && d.view === 'root'), out = [];
@@ -2186,7 +2258,7 @@ const ChatCore = (() => {
     return msgs;
   }
 
-  return { buildDocs, rank, buildContext, parseAnswer, resolveTarget, isAffirmative, factsAnswer, suggestQuestions, buildMessages, estimateTokens, terms, SYSTEM_PROMPT };
+  return { buildDocs, rank, buildContext, parseAnswer, resolveTarget, isAffirmative, factsAnswer, suggestQuestions, buildMessages, linkEntities, estimateTokens, terms, SYSTEM_PROMPT };
 })();
 /* ======================= END CHAT CORE ======================= */
 /* =====================================================================
@@ -2217,7 +2289,7 @@ const ChatCore = (() => {
   };
   const S = { open: false, tierKey: LS.get('tier', CFG.models[0].key), history: [], pending: null, prevTarget: null, busy: false, factsMode: false, answers: 0 };
   const tier = () => CFG.models.find(m => m.key === S.tierKey) || CFG.models[0];
-  const stage = $('#stage'), panel = $('#chat'), btn = $('#chatBtn'), msgs = $('#chatMsgs'), input = $('#chatIn'), form = $('#chatForm'), statusEl = $('#chatStatus'), prog = $('#chatProgress');
+  const stage = $('#stage'), panel = $('#chat'), btn = $('#chatBtn'), msgs = $('#chatMsgs'), input = $('#chatIn'), form = $('#chatForm'), statusEl = $('#chatStatus'), prog = $('#chatProgress'), overlay = $('#chatOverlay');
   let lastTimings = null;
 
   /* ---- runtime: WebGPU gate + WebLLM engine ---- */
@@ -2267,7 +2339,28 @@ const ChatCore = (() => {
     S.open = !!o; panel.hidden = !S.open; stage.classList.toggle('chat-open', S.open); LS.set('open', S.open); inset();
     if (S.open) { if (!msgs.children.length) intro(); setTimeout(() => input.focus(), 60); }
   }
-  function autosize() { input.style.height = 'auto'; input.style.height = Math.min(84, input.scrollHeight) + 'px'; }
+  function autosize() { input.style.height = 'auto'; const h = Math.min(84, input.scrollHeight); input.style.height = h + 'px'; input.style.overflowY = input.scrollHeight > 84 ? 'auto' : 'hidden'; }
+  /* ---- download / load overlay ---- */
+  const ARC = 194.8;
+  function showOverlay(model) {
+    overlay.hidden = false; overlay.style.top = panel.querySelector('header').offsetHeight + 'px';
+    overlay.classList.add('indeterminate');
+    overlay.querySelector('h3').textContent = 'Preparing ' + model.sub;
+    overlay.querySelector('.detail').textContent = 'Checking the browser cache…';
+    overlay.querySelector('.hint').textContent = 'Your question will be answered as soon as the model is ready.';
+  }
+  function updateOverlay(model, p, text) {
+    const mb = /(\d+)MB (fetched|loaded)/i.exec(text || ''), pct = Math.round((p || 0) * 100);
+    const downloading = /fetch/i.test(text || ''), fromCache = /from cache/i.test(text || ''), gpu = /shader|finish|gpu/i.test(text || '');
+    overlay.classList.toggle('indeterminate', gpu || (!downloading && !fromCache));
+    overlay.querySelector('.arc').style.strokeDashoffset = String(ARC * (1 - Math.max(0, Math.min(1, p || 0))));
+    overlay.querySelector('.pct').textContent = pct + '%';
+    overlay.querySelector('h3').textContent = gpu ? 'Preparing the GPU' : fromCache ? 'Loading ' + model.sub + ' from cache' : downloading ? 'Downloading ' + model.sub : 'Preparing ' + model.sub;
+    overlay.querySelector('.detail').textContent = downloading
+      ? (mb ? `${mb[1]} of about ${model.sizeMB} MB` : 'about ' + model.sizeMB + ' MB') + ' · one-time download, cached by your browser'
+      : fromCache ? 'Reading the cached weights into the GPU' : gpu ? 'Compiling shaders for this GPU' : '';
+  }
+  function hideOverlay() { overlay.hidden = true; }
   /* ---- tiers, intro, loading ---- */
   function renderTiers() {
     $('#chatTiers').innerHTML = CFG.models.map(m => `<button class="chip${m.key === S.tierKey ? ' on' : ''}" data-k="${esc(m.key)}" title="${esc(m.id)} · about ${m.sizeMB} MB">${esc(m.label)}<small>${esc(m.sub)}</small></button>`).join('');
@@ -2299,12 +2392,12 @@ const ChatCore = (() => {
       add('bot', `${esc(g.reason)} I will answer from the map data directly. The full model needs WebGPU in Chrome, Edge or Safari 26.`, 'note');
       return false;
     }
-    S.factsMode = false; setStatus('busy', 'loading ' + t.sub); setProgress(0); input.disabled = true;
+    S.factsMode = false; setStatus('busy', 'loading ' + t.sub); setProgress(0); input.disabled = true; showOverlay(t);
     try {
-      await Runtime.load(t, (p, text) => { setProgress(p); setStatus('busy', /gpu|shader|finish/i.test(text) ? 'preparing GPU' : 'loading ' + Math.round((p || 0) * 100) + '%'); });
-      setStatus('ready', 'ready · ' + t.sub); setProgress(null); return true;
+      await Runtime.load(t, (p, text) => { setProgress(p); updateOverlay(t, p, text); setStatus('busy', /gpu|shader|finish/i.test(text) ? 'preparing GPU' : 'loading ' + Math.round((p || 0) * 100) + '%'); });
+      setStatus('ready', 'ready · ' + t.sub); setProgress(null); hideOverlay(); return true;
     } catch (e) {
-      S.factsMode = true; setStatus('error', 'facts mode'); setProgress(null);
+      S.factsMode = true; setStatus('error', 'facts mode'); setProgress(null); hideOverlay();
       const el = add('bot', `The model could not be loaded (${esc(e && e.message || e)}). Answering from the map data instead. <button class="act" data-act="retry">Retry</button>`, 'err');
       el.querySelector('[data-act=retry]').onclick = () => { S.factsMode = false; loadModel(); };
       return false;
@@ -2336,10 +2429,9 @@ const ChatCore = (() => {
         if (ch.usage) usage = ch.usage;
       }
       const total = performance.now() - t0, { text, goto } = ChatCore.parseAnswer(raw);
-      el.innerHTML = md(text || 'I have no answer for that from the map.');
       S.history.push({ role: 'user', text: q }, { role: 'assistant', text });
       lastTimings = { ttftMs: Math.round(ttft), totalMs: Math.round(total), usage, promptTokens: ctx.tokens };
-      offer(el, ChatCore.resolveTarget(goto, ctx.candidates), ctx);
+      renderAnswer(el, text || 'I have no answer for that from the map.', ChatCore.resolveTarget(goto, ctx.candidates), ctx);
       setStatus('ready', 'ready · ' + tier().sub);
       checkLatency(total);
     } catch (e) {
@@ -2349,20 +2441,31 @@ const ChatCore = (() => {
   }
   function factsReply(q, ctx) {
     const top = ctx.candidates[0] ? ctx.candidates[0].doc : null, text = ChatCore.factsAnswer(top);
-    const el = add('bot', md(text));
+    const el = add('bot', '');
     S.history.push({ role: 'user', text: q }, { role: 'assistant', text });
-    offer(el, top ? { doc: top, how: 'facts' } : null, ctx);
+    renderAnswer(el, text, top ? { doc: top, how: 'facts' } : null, ctx);
   }
-  /* ---- navigation handshake ---- */
-  function offer(el, target, ctx) {
-    S.prevTarget = target ? target.doc.id : ctx.candidates[0] ? ctx.candidates[0].doc.id : S.prevTarget;
-    if (!target) return;
-    const d = target.doc; S.pending = d;
-    const verb = d.kind === 'flow' ? 'Play flow: ' : d.kind === 'zone' ? 'Zoom to ' : 'Take me to ';
-    const b = document.createElement('button'); b.className = 'act'; b.textContent = verb + d.name;
-    const m = document.createElement('span'); m.className = 'meta'; m.textContent = 'Want me to take you there? Click the button or reply "yes".';
-    el.appendChild(b); el.appendChild(m); scrollDown();
-    b.onclick = () => { b.disabled = true; if (S.pending === d) S.pending = null; go(d); };
+  /* ---- navigation: every mentioned entity is a link; the main subject also answers to "yes" ---- */
+  function entButton(d, label, primary) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'ent' + (primary ? ' primary' : '');
+    b.textContent = label; b.title = (d.kind === 'flow' ? 'Play flow: ' : d.kind === 'zone' ? 'Zoom to district: ' : 'Take me to: ') + d.name;
+    b.onclick = () => { b.classList.add('gone'); if (S.pending === d) S.pending = null; go(d); };
+    return b;
+  }
+  function renderAnswer(el, text, target, ctx) {
+    const primary = target ? target.doc : null;
+    S.prevTarget = primary ? primary.id : ctx.candidates[0] ? ctx.candidates[0].doc.id : S.prevTarget;
+    S.pending = primary;
+    const plain = String(text).replace(/\*\*([^*]+)\*\*/g, '$1');
+    const segs = ChatCore.linkEntities(plain, docs, { view: A.cur() });
+    el.innerHTML = '';
+    let linkedPrimary = false;
+    for (const sg of segs) {
+      if (sg.text != null) { const span = document.createElement('span'); span.innerHTML = md(sg.text); el.appendChild(span); }
+      else { const isP = primary && sg.doc.id === primary.id; linkedPrimary = linkedPrimary || isP; el.appendChild(entButton(sg.doc, sg.label, isP)); }
+    }
+    if (primary && !linkedPrimary) { const t = document.createElement('span'); t.className = 'trail'; t.appendChild(entButton(primary, (primary.kind === 'flow' ? 'Play ' : 'Go to ') + primary.name, true)); el.appendChild(t); }
+    scrollDown();
   }
   function go(d) {
     if (d.kind === 'flow') { const f = A.FLOWS.find(x => x.id === d.id); if (f) A.startFlow(f); return; }
