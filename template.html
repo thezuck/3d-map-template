@@ -2095,7 +2095,42 @@ const ChatCore = (() => {
   const YES = /^\s*(y|yes|yeah|yep|yup|sure|ok|okay|please|go|go ahead|do it|take me|take me there|yes please|sure thing|please do)\s*[.!]*\s*$/i;
   const isAffirmative = s => YES.test(String(s == null ? '' : s));
 
-  return { buildDocs, rank, buildContext, parseAnswer, resolveTarget, isAffirmative, estimateTokens, terms };
+  function factsAnswer(d) {
+    if (!d) return 'I could not find anything on this map matching that. Try the name of a system, district or flow.';
+    if (d.kind === 'node') {
+      const where = d.district ? ` (${d.district}${d.catLabel ? ', ' + d.catLabel : ''})` : '';
+      const parts = [`**${d.name}**${where}${d.blurb ? ': ' + d.blurb : '.'}`];
+      if (d.desc[0]) parts.push(d.desc[0]);
+      if (d.conns.length) parts.push('Connections: ' + d.conns.slice(0, 5).join('; ') + '.');
+      return parts.join(' ');
+    }
+    if (d.kind === 'zone') return `**${d.name}** is a district${d.desc[0] ? ': ' + d.desc[0] : '.'} It contains ${d.members.join(', ')}.`;
+    if (d.kind === 'flow') return `**${d.name}** is a guided flow${d.blurb ? ': ' + d.blurb : '.'} ${d.steps.length} steps: ${d.steps.slice(0, 3).join(' ')}${d.steps.length > 3 ? ' …' : ''}`;
+    return d.card;
+  }
+  function suggestQuestions(docs) {
+    const nodes = docs.filter(d => d.kind === 'node' && d.view === 'root').sort((a, b) => b.height - a.height);
+    const flow = docs.find(d => d.kind === 'flow'), zone = docs.find(d => d.kind === 'zone' && d.view === 'root'), out = [];
+    if (nodes[0]) out.push(`What does ${nodes[0].name} do, and what talks to it?`);
+    if (flow) out.push(`Walk me through "${flow.name}".`);
+    if (zone) out.push(`What is in ${zone.name}?`);
+    return out;
+  }
+  const SYSTEM_PROMPT = [
+    'You are the guide for an interactive 3D architecture map of a software system.',
+    'Answer the question using ONLY the map context below. Be concise: two to four short sentences of highlights.',
+    'If the context does not cover the question, say plainly that it is not on the map.',
+    'Refer to things by their names, not their ids, in prose.',
+    'Finish with exactly one line of the form "GOTO: <id>" when one listed system, district or flow is the subject of the question (use its id from the context), otherwise finish with "GOTO: none".',
+  ].join(' ');
+  function buildMessages(context, history, question, maxTurns) {
+    const msgs = [{ role: 'system', content: SYSTEM_PROMPT + '\n\n## Map context\n' + context }];
+    for (const h of (history || []).slice(-(maxTurns || 3) * 2)) msgs.push({ role: h.role, content: clip(h.text, 500) });
+    msgs.push({ role: 'user', content: String(question).trim() + ' /no_think' });
+    return msgs;
+  }
+
+  return { buildDocs, rank, buildContext, parseAnswer, resolveTarget, isAffirmative, factsAnswer, suggestQuestions, buildMessages, estimateTokens, terms, SYSTEM_PROMPT };
 })();
 /* ======================= END CHAT CORE ======================= */
 </script>

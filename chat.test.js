@@ -161,3 +161,31 @@ test('isAffirmative: short yes-words only', () => {
   for (const s of ['yes', 'Yes!', 'y', 'sure', 'ok', 'okay', 'please', 'go', 'do it', 'take me there', 'yes please', 'go ahead', 'yep.']) assert.equal(ChatCore.isAffirmative(s), true, s);
   for (const s of ['yes but what about redis', 'no', 'what is redis', 'okay what else', '']) assert.equal(ChatCore.isAffirmative(s), false, s);
 });
+
+test('factsAnswer: deterministic answers for node, district, flow and nothing', () => {
+  assert.match(ChatCore.factsAnswer(byId.get('worker')), /^\*\*Worker\*\* \(Core services, Core services\): Runs payment capture/);
+  assert.match(ChatCore.factsAnswer(byId.get('worker')), /Connections: /);
+  assert.match(ChatCore.factsAnswer(byId.get('z_data')), /^\*\*Data & messaging\*\* is a district/);
+  assert.match(ChatCore.factsAnswer(byId.get('checkout')), /^\*\*A shopper checks out\*\* is a guided flow/);
+  assert.match(ChatCore.factsAnswer(null), /could not find/);
+});
+
+test('suggestQuestions: hub node, first flow, first district', () => {
+  const s = ChatCore.suggestQuestions(docs);
+  assert.equal(s.length, 3);
+  assert.match(s[0], /Orders API/);
+  assert.match(s[1], /A shopper checks out/);
+  assert.match(s[2], /People & customers/);
+});
+
+test('buildMessages: system prompt with context, trimmed history, question with the no-think switch', () => {
+  const history = [];
+  for (let i = 0; i < 5; i++) history.push({ role: 'user', text: 'q' + i }, { role: 'assistant', text: 'a' + i });
+  const msgs = ChatCore.buildMessages('CTX', history, 'What is Redis?', 3);
+  assert.equal(msgs[0].role, 'system');
+  assert.match(msgs[0].content, /GOTO: <id>/);
+  assert.match(msgs[0].content, /\n## Map context\nCTX$/);
+  assert.equal(msgs.length, 1 + 6 + 1);
+  assert.equal(msgs[1].content, 'q2');
+  assert.equal(msgs[msgs.length - 1].content, 'What is Redis? /no_think');
+});
