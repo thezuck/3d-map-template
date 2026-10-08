@@ -157,7 +157,7 @@ code,.path{font-family:var(--mono);font-size:12px;background:rgba(122,167,255,.1
 .note{font-size:12px;color:var(--dim);line-height:1.5}
 
 /* hint + tooltip */
-#hint{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:3;font-size:12px;color:var(--muted);padding:7px 14px;border-radius:999px;white-space:nowrap;pointer-events:none;transition:opacity .4s}
+#hint{position:absolute;left:50%;bottom:60px;transform:translateX(-50%);z-index:3;font-size:12px;color:var(--muted);padding:7px 14px;border-radius:999px;white-space:nowrap;pointer-events:none;transition:opacity .4s}
 #hint kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line2);border-bottom-width:2px;border-radius:5px;padding:0 5px;margin:0 2px;color:var(--text)}
 #tip{position:absolute;z-index:6;pointer-events:none;max-width:280px;padding:9px 11px;border-radius:10px;background:rgba(6,10,20,.94);border:1px solid var(--line2);box-shadow:0 10px 30px rgba(0,0,0,.5);font-size:12.5px;line-height:1.4;opacity:0;transition:opacity .12s}
 #tip b{display:block;font-size:13px;margin-bottom:2px}
@@ -1513,11 +1513,12 @@ view('api', 'Orders API', 'Routes on the left, domain modules and clients on the
 
   /* ---------- helpers ---------- */
   function toast(msg) { const t = $('#toast'); t.textContent = msg; t.style.opacity = 1; clearTimeout(toast.h); toast.h = setTimeout(() => (t.style.opacity = 0), 2200); }
+  let chatInset = 0; // bottom pixels taken by the chat panel (set through __arch.setBottomInset)
   function updateInsets() {
     const wide = innerWidth > 900;
     const l = wide && !$('#left').classList.contains('collapsed') ? $('#left').getBoundingClientRect().right + 10 : 0;
     const r = wide && panelOpen ? innerWidth - $('#right').getBoundingClientRect().left + 10 : 0;
-    const b = !wide && panelOpen ? Math.round(innerHeight * .46) + 8 : 0;
+    const b = Math.max(!wide && panelOpen ? Math.round(innerHeight * .46) + 8 : 0, chatInset);
     Engine.setInsets(l, r, 62, b);
     clearTimeout(updateInsets.t);
     updateInsets.t = setTimeout(() => { const st = Engine.st; if (Engine.scene() && !st.userMoved && !st.sel && !st.zone && !st.flow && !st.transition) Engine.home(); }, 150);
@@ -1904,7 +1905,7 @@ view('api', 'Orders API', 'Routes on the left, domain modules and clients on the
   $('#fClear').onclick = () => { if (activeFlow) clearFlow(); };
   $('#lAll').onclick = () => { Engine.st.catOn = {}; Engine.st.kindOn = {}; setProv('all'); renderChrome(); };
   addEventListener('keydown', ev => {
-    if (ev.target === sIn) return;
+    if (ev.target && ev.target.closest && ev.target.closest('input,textarea,#chat')) return;
     const k = ev.key, c = Engine.cam;
     if (k === 'Escape') goBack();
     else if (k === '/') { ev.preventDefault(); $('#left').classList.remove('collapsed'); updateInsets(); sIn.focus(); }
@@ -1935,7 +1936,7 @@ view('api', 'Orders API', 'Routes on the left, domain modules and clients on the
   applyHash(location.hash.slice(1), false);
   setTimeout(() => $('#loading').classList.add('gone'), 250);
   if (problems.errors.length) setTimeout(() => toast(`Architecture data has ${problems.errors.length} error${problems.errors.length > 1 ? 's' : ''} — open the console`), 600);
-  window.__arch = { hist, goBack, Engine, nav: () => nav, navigate, select: selectById, startFlow, FLOWS, NODE, INSIDE, problems };
+  window.__arch = { hist, goBack, Engine, nav: () => nav, cur, navigate, select: selectById, focusZone, startFlow, FLOWS, NODE, ZONE, INSIDE, problems, setBottomInset(px) { chatInset = px || 0; updateInsets(); } };
 })();
 /* ======================= BEGIN CHAT CORE (pure — no DOM, no network; tested by chat.test.js) =======================
    Retrieval over the ARCHITECTURE DATA, prompt context assembly, answer parsing and the navigation
