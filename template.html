@@ -2310,7 +2310,52 @@ const ChatCore = (() => {
       return false;
     } finally { input.disabled = false; input.focus(); }
   }
-  function ask(q) { q = String(q || '').trim(); if (!q) return; input.value = ''; autosize(); add('user', esc(q)); add('bot', 'Model wiring arrives in the next task.', 'note'); }
+  /* ---- asking ---- */
+  function selectedId() {
+    const st = A.Engine.st, s = st.sel;
+    if (s && s.kind === 'box') return String(s.id).replace(/^ghost:/, '');
+    if (s && s.kind === 'plate') return s.id;
+    return st.zone || null;
+  }
+  async function ask(q) {
+    q = String(q || '').trim(); if (!q || S.busy) return;
+    input.value = ''; autosize();
+    add('user', esc(q));
+    if (S.pending && ChatCore.isAffirmative(q)) { const d = S.pending; S.pending = null; add('bot', `Taking you to <b>${esc(d.name)}</b>.`); go(d); return; }
+    S.pending = null;
+    const ranked = ChatCore.rank(docs, q, { view: A.cur(), selected: selectedId(), prevTarget: S.prevTarget });
+    const ctx = ChatCore.buildContext(ranked, byId, CFG.contextBudget);
+    if (!S.factsMode && !Runtime.ready()) await loadModel();
+    if (S.factsMode || !Runtime.ready()) return factsReply(q, ctx);
+    S.busy = true; setStatus('busy', 'thinking');
+    const el = add('bot', '<span class="cur"></span>');
+    let raw = '', usage = null, ttft = 0; const t0 = performance.now();
+    try {
+      for await (const ch of Runtime.stream(ChatCore.buildMessages(ctx.context, S.history, q, 3), CFG.maxTokens)) {
+        if (ch.text) { if (!ttft) ttft = performance.now() - t0; raw += ch.text; el.innerHTML = md(ChatCore.parseAnswer(raw).text) + '<span class="cur"></span>'; scrollDown(); }
+        if (ch.usage) usage = ch.usage;
+      }
+      const total = performance.now() - t0, { text, goto } = ChatCore.parseAnswer(raw);
+      el.innerHTML = md(text || 'I have no answer for that from the map.');
+      S.history.push({ role: 'user', text: q }, { role: 'assistant', text });
+      lastTimings = { ttftMs: Math.round(ttft), totalMs: Math.round(total), usage, promptTokens: ctx.tokens };
+      offer(el, ChatCore.resolveTarget(goto, ctx.candidates), ctx);
+      setStatus('ready', 'ready · ' + tier().sub);
+      checkLatency(total);
+    } catch (e) {
+      el.innerHTML = md(ChatCore.parseAnswer(raw).text) + `<span class="meta">Something went wrong: ${esc(e && e.message || e)}. Ask again to retry.</span>`;
+      el.classList.add('err'); setStatus('error', 'error');
+    } finally { S.busy = false; }
+  }
+  function factsReply(q, ctx) {
+    const top = ctx.candidates[0] ? ctx.candidates[0].doc : null, text = ChatCore.factsAnswer(top);
+    const el = add('bot', md(text));
+    S.history.push({ role: 'user', text: q }, { role: 'assistant', text });
+    offer(el, top ? { doc: top, how: 'facts' } : null, ctx);
+  }
+  function offer(el, target, ctx) { if (ctx.candidates[0]) S.prevTarget = ctx.candidates[0].doc.id; }
+  function go(d) { A.navigate(d.view, d.id); }
+  function checkLatency() { }
 
   btn.onclick = () => setOpen(true);
   $('#chatClose').onclick = () => setOpen(false);
