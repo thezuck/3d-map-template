@@ -2353,9 +2353,31 @@ const ChatCore = (() => {
     S.history.push({ role: 'user', text: q }, { role: 'assistant', text });
     offer(el, top ? { doc: top, how: 'facts' } : null, ctx);
   }
-  function offer(el, target, ctx) { if (ctx.candidates[0]) S.prevTarget = ctx.candidates[0].doc.id; }
-  function go(d) { A.navigate(d.view, d.id); }
-  function checkLatency() { }
+  /* ---- navigation handshake ---- */
+  function offer(el, target, ctx) {
+    S.prevTarget = target ? target.doc.id : ctx.candidates[0] ? ctx.candidates[0].doc.id : S.prevTarget;
+    if (!target) return;
+    const d = target.doc; S.pending = d;
+    const verb = d.kind === 'flow' ? 'Play flow: ' : d.kind === 'zone' ? 'Zoom to ' : 'Take me to ';
+    const b = document.createElement('button'); b.className = 'act'; b.textContent = verb + d.name;
+    const m = document.createElement('span'); m.className = 'meta'; m.textContent = 'Want me to take you there? Click the button or reply "yes".';
+    el.appendChild(b); el.appendChild(m); scrollDown();
+    b.onclick = () => { b.disabled = true; if (S.pending === d) S.pending = null; go(d); };
+  }
+  function go(d) {
+    if (d.kind === 'flow') { const f = A.FLOWS.find(x => x.id === d.id); if (f) A.startFlow(f); return; }
+    A.navigate(d.view, d.id);
+  }
+  function checkLatency(totalMs) {
+    const t = tier(); S.answers++;
+    if (S.answers < 2 || LS.get('measured.' + t.id)) return; // the first answer carries shader warm-up
+    LS.set('measured.' + t.id, { ms: Math.round(totalMs), at: new Date().toISOString() });
+    const other = CFG.models.find(m => m.key !== t.key && m.sizeMB < t.sizeMB);
+    if (totalMs > CFG.latencyLimitMs && other) {
+      const el = add('bot', `That answer took ${(totalMs / 1000).toFixed(1)} s. <button class="act" data-act="fast">Switch to ${esc(other.label)} (${esc(other.sub)})</button>`, 'note');
+      el.querySelector('[data-act=fast]').onclick = () => pickTier(other.key);
+    }
+  }
 
   btn.onclick = () => setOpen(true);
   $('#chatClose').onclick = () => setOpen(false);
