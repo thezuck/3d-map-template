@@ -157,6 +157,14 @@ test('resolveTarget: no clear winner means no offer', () => {
   assert.equal(ChatCore.resolveTarget(null, []), null);
 });
 
+test('resolveTarget: a flow question falls back to the flow when the model gives no target', () => {
+  for (const q of ['Walk me through a checkout.', 'What happens during checkout?', 'how does a deploy work']) {
+    const { candidates } = ChatCore.buildContext(ChatCore.rank(docs, q, {}), byId, 450);
+    const r = ChatCore.resolveTarget(null, candidates);
+    assert.ok(r && r.doc.kind === 'flow', q + ' -> ' + (r && r.doc.id));
+  }
+});
+
 test('isAffirmative: short yes-words only', () => {
   for (const s of ['yes', 'Yes!', 'y', 'sure', 'ok', 'okay', 'please', 'go', 'do it', 'take me there', 'yes please', 'go ahead', 'yep.']) assert.equal(ChatCore.isAffirmative(s), true, s);
   for (const s of ['yes but what about redis', 'no', 'what is redis', 'okay what else', '']) assert.equal(ChatCore.isAffirmative(s), false, s);
