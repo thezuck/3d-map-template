@@ -2073,7 +2073,29 @@ const ChatCore = (() => {
     return { context: lines.join('\n'), candidates, tokens };
   }
 
-  return { buildDocs, rank, buildContext, estimateTokens, terms };
+  /* ---- answers and navigation rules ---- */
+  function parseAnswer(raw) {
+    let text = String(raw == null ? '' : raw).replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/<\/?think>/gi, '').trim();
+    let goto = null;
+    const m = text.match(/(?:^|\s)GOTO:[ \t]*([^\n]*?)[ \t]*$/i); // trailing line or trailing phrase
+    if (m) { goto = m[1].trim().replace(/[.`'"*]+$/g, '').trim() || null; text = text.slice(0, m.index).trim(); }
+    if (goto && /^none$/i.test(goto)) goto = null;
+    return { text, goto };
+  }
+  function resolveTarget(goto, candidates) {
+    const nav = (candidates || []).filter(c => c.doc && (c.doc.kind === 'node' || c.doc.kind === 'zone' || c.doc.kind === 'flow'));
+    if (goto) {
+      const g = String(goto).toLowerCase(), first = g.split(/[\s·,;:]+/)[0];
+      const hit = nav.find(c => c.doc.id.toLowerCase() === g) || nav.find(c => c.doc.id.toLowerCase() === first) || nav.find(c => c.doc.name.toLowerCase() === g);
+      if (hit) return { doc: hit.doc, how: 'model' };
+    }
+    if (nav.length && nav[0].score >= 5 && (nav.length === 1 || nav[0].score >= 2 * nav[1].score)) return { doc: nav[0].doc, how: 'retrieval' };
+    return null;
+  }
+  const YES = /^\s*(y|yes|yeah|yep|yup|sure|ok|okay|please|go|go ahead|do it|take me|take me there|yes please|sure thing|please do)\s*[.!]*\s*$/i;
+  const isAffirmative = s => YES.test(String(s == null ? '' : s));
+
+  return { buildDocs, rank, buildContext, parseAnswer, resolveTarget, isAffirmative, estimateTokens, terms };
 })();
 /* ======================= END CHAT CORE ======================= */
 </script>

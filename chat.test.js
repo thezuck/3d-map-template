@@ -122,3 +122,42 @@ test('buildContext: empty ranking still returns the about card and no candidates
   assert.match(ctx.context, /^Acme Commerce:/);
   assert.equal(ctx.candidates.length, 0);
 });
+
+test('parseAnswer: strips think blocks and the trailing GOTO line', () => {
+  assert.deepEqual({ ...ChatCore.parseAnswer('<think>\n\n</think>\n\nThe worker runs jobs. GOTO: worker') }, { text: 'The worker runs jobs.', goto: 'worker' });
+  assert.deepEqual({ ...ChatCore.parseAnswer('The API is the hub.\nGOTO: api.') }, { text: 'The API is the hub.', goto: 'api' });
+  assert.deepEqual({ ...ChatCore.parseAnswer('Nothing on the map covers that.\nGOTO: none') }, { text: 'Nothing on the map covers that.', goto: null });
+  assert.deepEqual({ ...ChatCore.parseAnswer('Plain answer without a target') }, { text: 'Plain answer without a target', goto: null });
+  assert.equal(ChatCore.parseAnswer('<think>reasoning</think>Answer').text, 'Answer');
+});
+
+test('resolveTarget: accepts only candidate ids, by id, first token or name', () => {
+  const ranked = ChatCore.rank(docs, 'tell me about the worker', {});
+  const { candidates } = ChatCore.buildContext(ranked, byId, 450);
+  assert.equal(ChatCore.resolveTarget('worker', candidates).doc.id, 'worker');
+  assert.equal(ChatCore.resolveTarget('worker', candidates).how, 'model');
+  const invented = ChatCore.resolveTarget('api · 2 replicas', candidates); // api is not a candidate here: fall back to the clear retrieval winner
+  assert.equal(invented.doc.id, 'worker'); assert.equal(invented.how, 'retrieval');
+  assert.equal(ChatCore.resolveTarget('Worker', candidates).doc.id, 'worker');
+});
+
+test('resolveTarget: clear retrieval winner becomes the offer when the model gives none', () => {
+  const ranked = ChatCore.rank(docs, 'What does the Orders API do, and what talks to it?', {});
+  const { candidates } = ChatCore.buildContext(ranked, byId, 450);
+  const r = ChatCore.resolveTarget(null, candidates);
+  assert.equal(r.doc.id, 'api'); assert.equal(r.how, 'retrieval');
+});
+
+test('resolveTarget: no clear winner means no offer', () => {
+  const api = byId.get('api'), worker = byId.get('worker');
+  assert.equal(ChatCore.resolveTarget(null, [{ doc: api, score: 9 }, { doc: worker, score: 8 }]), null, 'two close scores');
+  assert.equal(ChatCore.resolveTarget(null, [{ doc: api, score: 4 }]), null, 'a weak single hit');
+  assert.equal(ChatCore.resolveTarget(null, [{ doc: api, score: 9 }, { doc: worker, score: 4 }]).doc.id, 'api', 'twice the runner-up');
+  assert.equal(ChatCore.resolveTarget('worker', [{ doc: api, score: 9 }, { doc: worker, score: 8 }]).doc.id, 'worker', 'the model picks among close candidates');
+  assert.equal(ChatCore.resolveTarget(null, []), null);
+});
+
+test('isAffirmative: short yes-words only', () => {
+  for (const s of ['yes', 'Yes!', 'y', 'sure', 'ok', 'okay', 'please', 'go', 'do it', 'take me there', 'yes please', 'go ahead', 'yep.']) assert.equal(ChatCore.isAffirmative(s), true, s);
+  for (const s of ['yes but what about redis', 'no', 'what is redis', 'okay what else', '']) assert.equal(ChatCore.isAffirmative(s), false, s);
+});
