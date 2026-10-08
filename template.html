@@ -2220,6 +2220,43 @@ const ChatCore = (() => {
   const stage = $('#stage'), panel = $('#chat'), btn = $('#chatBtn'), msgs = $('#chatMsgs'), input = $('#chatIn'), form = $('#chatForm'), statusEl = $('#chatStatus'), prog = $('#chatProgress');
   let lastTimings = null;
 
+  /* ---- runtime: WebGPU gate + WebLLM engine ---- */
+  const Runtime = (() => {
+    let engine = null, loadedId = null, loading = null, mod = null, gpu = null;
+    async function checkGpu() {
+      if (gpu) return gpu;
+      try {
+        if (!navigator.gpu) return (gpu = { ok: false, reason: 'WebGPU is not available in this browser.' });
+        const a = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+        if (!a) return (gpu = { ok: false, reason: 'No WebGPU adapter was found.' });
+        if (a.isFallbackAdapter) return (gpu = { ok: false, reason: 'Only a software WebGPU adapter is available.' });
+        if (!a.features.has('shader-f16')) return (gpu = { ok: false, reason: 'This GPU does not expose shader-f16, which the model needs.' });
+        return (gpu = { ok: true });
+      } catch (e) { return (gpu = { ok: false, reason: 'The WebGPU check failed: ' + (e && e.message || e) }); }
+    }
+    async function load(model, onProgress) {
+      if (engine && loadedId === model.id) return engine;
+      if (loading) await loading.catch(() => { });
+      if (engine && loadedId === model.id) return engine;
+      loading = (async () => {
+        if (engine) { try { await engine.unload(); } catch (e) { /* already gone */ } engine = null; loadedId = null; }
+        mod = mod || await import(CFG.runtimeUrl);
+        const eng = await mod.CreateMLCEngine(model.id, { initProgressCallback: r => onProgress && onProgress(r.progress, r.text || ''), logLevel: 'WARN' });
+        engine = eng; loadedId = model.id; return eng;
+      })();
+      try { return await loading; } finally { loading = null; }
+    }
+    async function* stream(messages, maxTokens) {
+      const s = await engine.chat.completions.create({ messages, temperature: 0, max_tokens: maxTokens, stream: true, stream_options: { include_usage: true }, extra_body: { enable_thinking: false } });
+      for await (const ch of s) {
+        const d = ch.choices && ch.choices[0] && ch.choices[0].delta && ch.choices[0].delta.content;
+        if (d) yield { text: d };
+        if (ch.usage) yield { usage: ch.usage };
+      }
+    }
+    return { checkGpu, load, stream, ready: () => !!engine, loadedId: () => loadedId };
+  })();
+
   /* ---- panel ---- */
   function setStatus(kind, text) { statusEl.className = 'status ' + kind; statusEl.lastElementChild.textContent = text; }
   function setProgress(p) { prog.style.opacity = p == null ? 0 : 1; prog.firstElementChild.style.width = p == null ? '0' : Math.round(p * 100) + '%'; }
@@ -2231,7 +2268,48 @@ const ChatCore = (() => {
     if (S.open) { if (!msgs.children.length) intro(); setTimeout(() => input.focus(), 60); }
   }
   function autosize() { input.style.height = 'auto'; input.style.height = Math.min(84, input.scrollHeight) + 'px'; }
-  function intro() { add('bot', 'Ask me about any system, district, connection or flow on this map.', 'note'); }
+  /* ---- tiers, intro, loading ---- */
+  function renderTiers() {
+    $('#chatTiers').innerHTML = CFG.models.map(m => `<button class="chip${m.key === S.tierKey ? ' on' : ''}" data-k="${esc(m.key)}" title="${esc(m.id)} · about ${m.sizeMB} MB">${esc(m.label)}<small>${esc(m.sub)}</small></button>`).join('');
+    $('#chatTiers').querySelectorAll('button').forEach(b => (b.onclick = () => pickTier(b.dataset.k)));
+  }
+  function pickTier(k) {
+    if (k === S.tierKey || !CFG.models.some(m => m.key === k)) return;
+    S.tierKey = k; S.answers = 0; LS.set('tier', k); renderTiers();
+    if (Runtime.ready()) loadModel(); else if (!S.factsMode) firstUse();
+  }
+  let loadNote = null;
+  function intro() {
+    const t = tier(), sugg = ChatCore.suggestQuestions(docs);
+    const el = add('bot', `Ask me about any system, district, connection or flow on this map. I answer from the map's own data and can take you to what I describe.<span class="meta">A small model runs on your GPU inside this browser: about ${t.sizeMB} MB is downloaded once, then cached. Your questions never leave the browser.</span><div class="sugg">${sugg.map(q => `<button data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>`, 'note');
+    el.querySelectorAll('[data-q]').forEach(b => (b.onclick = () => ask(b.dataset.q)));
+    firstUse();
+  }
+  function firstUse() {
+    const t = tier();
+    if (loadNote) loadNote.remove();
+    loadNote = add('bot', `<button class="act" data-act="load">Load model · ${esc(t.label)} (${esc(t.sub)}, ~${t.sizeMB} MB)</button><span class="meta">Needs WebGPU (Chrome, Edge or Safari 26). Asking a question also starts the download.</span>`, 'note');
+    loadNote.querySelector('[data-act=load]').onclick = () => loadModel();
+  }
+  async function loadModel() {
+    const t = tier(), g = await Runtime.checkGpu();
+    if (loadNote) { loadNote.remove(); loadNote = null; }
+    if (!g.ok) {
+      S.factsMode = true; setStatus('error', 'facts mode');
+      add('bot', `${esc(g.reason)} I will answer from the map data directly. The full model needs WebGPU in Chrome, Edge or Safari 26.`, 'note');
+      return false;
+    }
+    S.factsMode = false; setStatus('busy', 'loading ' + t.sub); setProgress(0); input.disabled = true;
+    try {
+      await Runtime.load(t, (p, text) => { setProgress(p); setStatus('busy', /gpu|shader|finish/i.test(text) ? 'preparing GPU' : 'loading ' + Math.round((p || 0) * 100) + '%'); });
+      setStatus('ready', 'ready · ' + t.sub); setProgress(null); return true;
+    } catch (e) {
+      S.factsMode = true; setStatus('error', 'facts mode'); setProgress(null);
+      const el = add('bot', `The model could not be loaded (${esc(e && e.message || e)}). Answering from the map data instead. <button class="act" data-act="retry">Retry</button>`, 'err');
+      el.querySelector('[data-act=retry]').onclick = () => { S.factsMode = false; loadModel(); };
+      return false;
+    } finally { input.disabled = false; input.focus(); }
+  }
   function ask(q) { q = String(q || '').trim(); if (!q) return; input.value = ''; autosize(); add('user', esc(q)); add('bot', 'Model wiring arrives in the next task.', 'note'); }
 
   btn.onclick = () => setOpen(true);
@@ -2244,7 +2322,7 @@ const ChatCore = (() => {
   input.addEventListener('input', autosize);
   addEventListener('keydown', ev => { if (ev.target && ev.target.closest && ev.target.closest('input,textarea,#chat')) return; if (ev.key === 'c' || ev.key === 'C') setOpen(!S.open); });
   new ResizeObserver(inset).observe(panel);
-  setStatus('', 'not loaded'); setProgress(null);
+  renderTiers(); setStatus('', 'not loaded'); setProgress(null);
   if (LS.get('open', false)) setOpen(true);
   window.__arch.chat = { ask, open: setOpen, docs, state: S, core: ChatCore, timings: () => lastTimings, rank: q => ChatCore.rank(docs, q, {}) };
 })();
