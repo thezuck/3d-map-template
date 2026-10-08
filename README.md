@@ -11,6 +11,7 @@ Licensed under the [MIT License](LICENSE).
 | `template.html` | The complete viewer (engine and UI) with a small fictional example dataset. Copy it and replace the example. |
 | `check.js` | A dependency-free Node script that validates the data you wrote. |
 | `INSTRUCTIONS.md` | How to research a repository and fill in the map. |
+| `chat.test.js` | Tests for the chat's retrieval and navigation rules (`node --test chat.test.js`). |
 | `LICENSE` | The MIT license text. |
 
 ## Quick start
@@ -40,6 +41,19 @@ Everything on the page comes from the data region. You do not edit the engine or
 - **Search, filters, and links.** Provider spotlight, layer and connection-type toggles, a back history, and shareable links of the form `map.html#<view>~<nodeId>`.
 
 The example dataset is fictional ("Acme Commerce"). Delete it and describe the real system. Do not put secrets, keys, account identifiers, or personal data in the map.
+
+## Chat about the map
+
+The bottom-centre button opens a chat that answers questions about the map's own data and offers to take you to the system, district or flow it describes. It runs a small language model on your GPU inside the browser through [WebLLM](https://github.com/mlc-ai/web-llm); nothing is sent anywhere.
+
+- Requirements: WebGPU with `shader-f16` (Chrome, Edge, or Safari 26 on Apple silicon). Without it the chat still answers from the map data in a reduced "facts mode".
+- Download: about 970 MB once for the default model (Qwen3 1.7B) or about 340 MB for the Fast tier (Qwen3 0.6B). The browser caches the weights; later visits load in a few seconds. Nothing downloads until you click **Load model** or ask a question.
+- Speed: on an Apple M2 Pro the default model answers in about 3 seconds; the Fast tier in about 2.
+- Privacy: the runtime comes from jsDelivr and the weights from Hugging Face; questions and the map data never leave the browser.
+- The models (Qwen3, Apache-2.0) and the runtime are fetched at run time and are not part of this file.
+- Optional: `META.chat` in the data region can override `models`, `runtimeUrl`, `maxTokens`, `contextBudget` and `latencyLimitMs`.
+
+Tests for the retrieval and navigation logic: `node --test chat.test.js`.
 
 ## License
 

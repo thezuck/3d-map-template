@@ -41,6 +41,8 @@ Everything above is driven only by the data region. You never touch the engine o
 
 ---
 
+The chat button at the bottom of the viewer answers questions from the same data region, with a small model running in the browser. Good descriptions, `does` lists, facts and flow steps make its answers better; nothing extra needs to be written for it.
+
 ## 1. Workflow at a glance
 
 1. **Copy** `template.html` to where the map will live (for example `docs/architecture/<system>-architecture-3d.html`).
